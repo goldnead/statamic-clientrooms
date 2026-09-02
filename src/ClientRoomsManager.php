@@ -2,6 +2,7 @@
 
 namespace Goldnead\ClientRooms;
 
+use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Goldnead\ClientRooms\Events\ClientRoomClosed;
 use Goldnead\ClientRooms\Events\ClientRoomOpened;
@@ -9,6 +10,7 @@ use Goldnead\ClientRooms\Events\ClientRoomTaskCompleted;
 use Goldnead\ClientRooms\Events\ClientRoomTaskSubmitted;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
+use Goldnead\ClientRooms\Models\ClientRoomSession;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
@@ -22,6 +24,7 @@ use Goldnead\ClientRooms\Support\Timeline\RoomTimeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Contracts\Auth\User as UserContract;
@@ -379,6 +382,359 @@ class ClientRoomsManager
         ])->save();
 
         return $task;
+    }
+
+    /**
+     * Record a sitting that happened, typed by hand.
+     *
+     * Published unless told otherwise, for the same reason a task made here is:
+     * somebody named a client, typed a title and meant it to arrive. The
+     * column's own default is `draft` and guards the other direction — a row
+     * written straight into the table stays invisible until somebody has an
+     * opinion about it.
+     *
+     * A sitting that comes from a cockpit goes through `importSession()`
+     * instead, which is the same write with an identity attached.
+     *
+     * @param  array<string, mixed>  $attributes  everything else the sitting carries
+     */
+    public function recordSession(ClientRoom|int $room, string $title, ?DateTimeInterface $heldAt = null, array $attributes = []): ClientRoomSession
+    {
+        $room = $this->room($room);
+
+        $title = trim($title);
+
+        if ($title === '') {
+            throw new InvalidArgumentException('statamic-clientrooms: a session needs a title.');
+        }
+
+        $session = $room->sessions()->create(array_merge([
+            'title' => $title,
+            'held_at' => $heldAt,
+            'published_status' => ClientRoomSession::PUBLISHED_PUBLISHED,
+        ], $this->sessionFields($attributes)));
+
+        $room->touchActivity();
+
+        return $session;
+    }
+
+    /**
+     * Write a sitting that belongs to another system, once.
+     *
+     * `$externalId` is that system's id for it, and the whole point: called
+     * twice with the same one, this updates rather than duplicates. That is
+     * what makes a backfill safe to re-run and a delivery safe to retry — and
+     * a cockpit pushing a published sitting across *will* retry, eight times
+     * with backoff, because the alternative is losing it.
+     *
+     * Unlike `recordSession()` there is no default opinion about visibility:
+     * the sending system published it or did not, and `published_status` in
+     * `$attributes` carries that decision. Absent, the column's `draft` stands
+     * and the sitting waits in the Control Panel — the safe side.
+     *
+     * A title is not insisted on here. An import brings what it brings, and a
+     * sitting with a blank title is still a sitting that happened; losing it
+     * to a validation rule would be the worse outcome. It gets a plain
+     * stand-in instead.
+     *
+     * If the sitting turns up pointing at a different room than last time, it
+     * moves. The sending system decides whose sitting it is, and a stale row
+     * in the old room would show one client another one's hour.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function importSession(ClientRoom|int $room, string $externalId, array $attributes = []): ClientRoomSession
+    {
+        $room = $this->room($room);
+
+        $externalId = trim($externalId);
+
+        if ($externalId === '') {
+            throw new InvalidArgumentException('statamic-clientrooms: an imported session needs an external id.');
+        }
+
+        $fields = $this->sessionFields($attributes);
+
+        // No brand scope on this model, but the room it hangs in has one. The
+        // lookup is by an id that is unique across the whole table, so it has
+        // to find the row even when the current brand is not the row's — else
+        // a re-import under the wrong brand would insert a duplicate and die
+        // on the unique key instead.
+        $session = ClientRoomSession::query()->where('external_id', $externalId)->first();
+
+        if ($session === null) {
+            try {
+                $session = $room->sessions()->make(array_merge(
+                    [
+                        'title' => $this->importedSessionTitle($fields, $externalId),
+                        // Said out loud rather than left to the column's
+                        // default. The default does apply — but only in the
+                        // database, and the instance handed back would carry
+                        // null, so `isDraft()` on a freshly imported sitting
+                        // would answer false to a caller who never asked for
+                        // anything else.
+                        'published_status' => ClientRoomSession::PUBLISHED_DRAFT,
+                    ],
+                    $fields,
+                ));
+
+                // Identity, not content: `external_id` is deliberately absent
+                // from `$fillable`, so a `create()` would drop it without a
+                // word — and every later import would then insert again
+                // instead of finding this row. Forced in here, where the row
+                // is made, and nowhere else.
+                $session->forceFill(['external_id' => $externalId])->save();
+
+                $room->touchActivity();
+
+                return $session;
+            } catch (UniqueConstraintViolationException) {
+                // Two retries of one delivery, two queue workers, one moment.
+                // The unique key did its job; this side picks up that row and
+                // carries on as a second import.
+                $session = ClientRoomSession::query()->where('external_id', $externalId)->first();
+
+                if ($session === null) {
+                    throw new RuntimeException('statamic-clientrooms: the unique key refused the session, yet no session can be found for '.$externalId);
+                }
+            }
+        }
+
+        $session->fill($fields);
+
+        if ($session->room_id !== $room->id) {
+            $session->room_id = $room->id;
+        }
+
+        if ($session->isDirty()) {
+            $session->save();
+            $room->touchActivity();
+        }
+
+        return $session;
+    }
+
+    /**
+     * Change what a sitting says. Only the fields handed over are touched.
+     *
+     * `external_id` is not among them, here or anywhere: it is the row's
+     * identity, and an update that could move it would let one sitting quietly
+     * become another.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function updateSession(ClientRoomSession|int $session, array $attributes): ClientRoomSession
+    {
+        $session = $this->session($session);
+
+        if (array_key_exists('title', $attributes)) {
+            $title = trim((string) $attributes['title']);
+
+            if ($title === '') {
+                throw new InvalidArgumentException('statamic-clientrooms: a session needs a title.');
+            }
+        }
+
+        $session->fill($this->sessionFields($attributes));
+
+        if ($session->isDirty()) {
+            $session->save();
+            $this->roomOfSession($session)->touchActivity();
+        }
+
+        return $session;
+    }
+
+    /** Show a sitting to the client, or take it back to the desk. */
+    public function publishSession(ClientRoomSession|int $session, bool $published = true): ClientRoomSession
+    {
+        return $this->updateSession($session, [
+            'published_status' => $published
+                ? ClientRoomSession::PUBLISHED_PUBLISHED
+                : ClientRoomSession::PUBLISHED_DRAFT,
+        ]);
+    }
+
+    /**
+     * Take a sitting out of the room for good.
+     *
+     * Nothing of it lives on disk — the recording and the transcript are the
+     * other system's, and this row only ever held the way there — so deleting
+     * it strands nothing.
+     */
+    public function removeSession(ClientRoomSession|int $session): bool
+    {
+        $session = $this->session($session);
+        $room = $this->roomOfSession($session);
+
+        $deleted = (bool) $session->delete();
+
+        if ($deleted) {
+            $room->touchActivity();
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * The writable session fields, picked out of an array that may hold
+     * anything — an import may hand over a whole raw payload.
+     *
+     * Same contract as `taskFields()`: a key that is absent is left alone, a
+     * key that is there is written, an empty string and null landing as null.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    protected function sessionFields(array $attributes): array
+    {
+        $fields = [];
+
+        $strings = [
+            'title', 'status', 'published_status', 'agenda', 'summary',
+            'protocol', 'notes', 'coach_name', 'recording_url', 'transcript_url',
+        ];
+
+        foreach ($strings as $key) {
+            if (! array_key_exists($key, $attributes)) {
+                continue;
+            }
+
+            $value = $attributes[$key];
+
+            // A raw row carries arrays and objects. Those become null rather
+            // than a fatal cast: a field this addon cannot read is a field it
+            // does not have, not a reason to lose the sitting.
+            if (! is_scalar($value)) {
+                $fields[$key] = null;
+
+                continue;
+            }
+
+            $value = is_string($value) ? trim($value) : $value;
+            $value = (string) $value;
+
+            // Cast first, then judge: `false` casts to the empty string and is
+            // an absent field, not the two characters "false".
+            $fields[$key] = ($value === '') ? null : $value;
+        }
+
+        // Not nullable in the database, so an explicit null means "back to the
+        // safe side" rather than a write that blows up at the driver.
+        if (array_key_exists('published_status', $fields) && $fields['published_status'] === null) {
+            $fields['published_status'] = ClientRoomSession::PUBLISHED_DRAFT;
+        }
+
+        // Same: the title column is not nullable. An update that clears it is
+        // refused in `updateSession()`; here it simply does not happen.
+        if (array_key_exists('title', $fields) && $fields['title'] === null) {
+            unset($fields['title']);
+        }
+
+        foreach (['held_at', 'recording_url_expires_at', 'transcript_url_expires_at'] as $key) {
+            if (array_key_exists($key, $attributes)) {
+                $fields[$key] = $this->moment($attributes[$key]);
+            }
+        }
+
+        if (array_key_exists('duration_minutes', $attributes)) {
+            $minutes = $attributes['duration_minutes'];
+
+            // Clamped at both ends. The column is an unsigned int; a value
+            // above its ceiling would otherwise travel to the driver and come
+            // back as a SQL error instead of a number nobody meant.
+            $fields['duration_minutes'] = (! is_numeric($minutes))
+                ? null
+                : min(ClientRoomSession::MAX_DURATION_MINUTES, max(0, (int) $minutes));
+        }
+
+        if (array_key_exists('has_transcript', $attributes)) {
+            // Not nullable, so anything unreadable is `false` — "we know of no
+            // transcript", which is the honest reading of a value nobody can
+            // parse.
+            $fields['has_transcript'] = (bool) filter_var(
+                $attributes['has_transcript'],
+                FILTER_VALIDATE_BOOL,
+            );
+        }
+
+        // Provenance, not content: an array goes in as it comes, anything else
+        // is not something this column can hold.
+        if (array_key_exists('meta', $attributes)) {
+            $meta = $attributes['meta'];
+
+            $fields['meta'] = is_array($meta) ? $meta : null;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * A moment out of whatever an import calls one — a date object, an ISO
+     * string, a timestamp.
+     *
+     * Unparseable is null, not an exception. A sitting with an unreadable date
+     * is still a sitting; one that throws on the way in is a sitting lost.
+     */
+    protected function moment(mixed $value): ?CarbonInterface
+    {
+        if ($value instanceof DateTimeInterface) {
+            return Carbon::instance($value);
+        }
+
+        if (! is_string($value) && ! is_int($value)) {
+            return null;
+        }
+
+        if (is_string($value) && trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * A stand-in title for an import that brought none.
+     *
+     * The date if there is one, because that is how a coach refers to a
+     * sitting out loud; otherwise a plain word, and the sending system's id
+     * stays on the row to lead back.
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    protected function importedSessionTitle(array $fields, string $externalId): string
+    {
+        $title = $fields['title'] ?? null;
+
+        if (is_string($title) && trim($title) !== '') {
+            return trim($title);
+        }
+
+        $heldAt = $fields['held_at'] ?? null;
+
+        if ($heldAt instanceof DateTimeInterface) {
+            return __('statamic-clientrooms::messages.session_untitled_on', [
+                'date' => Carbon::instance($heldAt)->toFormattedDateString(),
+            ]);
+        }
+
+        return __('statamic-clientrooms::messages.session_untitled');
+    }
+
+    protected function session(ClientRoomSession|int $session): ClientRoomSession
+    {
+        return $session instanceof ClientRoomSession ? $session : ClientRoomSession::query()->findOrFail($session);
+    }
+
+    /** The room a sitting hangs in, brand scope aside — a sitting is never orphaned. */
+    protected function roomOfSession(ClientRoomSession $session): ClientRoom
+    {
+        return $session->room()->withoutGlobalScopes()->firstOrFail();
     }
 
     /**

@@ -177,4 +177,15 @@ return [
     'room_submitted' => 'Handed in on',
     'room_files' => 'Documents',
     'room_files_none' => 'Nothing shared yet.',
+
+    // Sessions
+    'room_sessions' => 'Your sessions',
+    'room_sessions_none' => 'No sessions yet.',
+    'room_session_protocol' => 'Write-up',
+    'room_session_recording' => 'Recording',
+    'room_session_transcript' => 'Transcript',
+    'room_session_minutes' => 'min',
+    // A session that arrived from another system without a title of its own.
+    'session_untitled' => 'Session',
+    'session_untitled_on' => 'Session on :date',
 ];

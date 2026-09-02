@@ -5,6 +5,7 @@ namespace Goldnead\ClientRooms\Http\Controllers;
 use Goldnead\ClientRooms\ClientRoomsManager;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
+use Goldnead\ClientRooms\Models\ClientRoomSession;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
@@ -50,6 +51,7 @@ class MemberController extends Controller
                 'notes_for_client' => $room->client_notes,
             ],
             'tasks' => $this->tasks($room),
+            'sessions' => $this->sessions($room),
             'files' => $room->files()
                 ->where('visible_to_client', true)
                 ->get()
@@ -171,6 +173,52 @@ class MemberController extends Controller
             ->map(fn (ClientRoomTask $task): array => $this->presentTask($task))
             ->values()
             ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    protected function sessions(ClientRoom $room): array
+    {
+        return $room->sessions()
+            ->published()
+            ->get()
+            ->map(fn (ClientRoomSession $session): array => $this->presentSession($session))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * One sitting, as the client may see it.
+     *
+     * `notes` is absent on purpose and must stay absent: that column is the
+     * coach's own desk, and this is the one place where forgetting that would
+     * hand it to the person it is about.
+     *
+     * The two links come from the model's accessors rather than the columns,
+     * so an expired one arrives as null. A dead link is worse than none — it
+     * looks like it works, and the client finds out otherwise. `has_recording`
+     * and `has_transcript` say that something exists regardless, which is what
+     * lets a front end show the row and ask for a fresh link instead of
+     * pretending the hour was never recorded.
+     *
+     * @return array<string, mixed>
+     */
+    protected function presentSession(ClientRoomSession $session): array
+    {
+        return [
+            'id' => $session->id,
+            'title' => $session->title,
+            'held_at' => $session->held_at?->toIso8601String(),
+            'duration_minutes' => $session->duration_minutes,
+            'status' => $session->status,
+            'agenda' => $session->agenda,
+            'summary' => $session->summary,
+            'protocol' => $session->protocol,
+            'coach_name' => $session->coach_name,
+            'has_recording' => $session->hasRecording(),
+            'recording_url' => $session->recordingUrl(),
+            'has_transcript' => $session->hasTranscript(),
+            'transcript_url' => $session->transcriptUrl(),
+        ];
     }
 
     /** @return array<string, mixed> */

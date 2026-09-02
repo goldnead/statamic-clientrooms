@@ -177,4 +177,15 @@ return [
     'room_submitted' => 'Abgegeben am',
     'room_files' => 'Unterlagen',
     'room_files_none' => 'Noch nichts geteilt.',
+
+    // Sitzungen
+    'room_sessions' => 'Deine Sitzungen',
+    'room_sessions_none' => 'Noch keine Sitzungen.',
+    'room_session_protocol' => 'Protokoll',
+    'room_session_recording' => 'Aufnahme',
+    'room_session_transcript' => 'Transkript',
+    'room_session_minutes' => 'Min.',
+    // Eine Sitzung, die ohne eigenen Titel aus einem anderen System kam.
+    'session_untitled' => 'Sitzung',
+    'session_untitled_on' => 'Sitzung vom :date',
 ];

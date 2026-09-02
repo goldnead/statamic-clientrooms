@@ -19,6 +19,10 @@ last week, the note about what to work on next. That is what a room is.
 - **Submissions.** The client hands a task back with text, files, or both. A second attempt is a
   second submission, never an overwrite. Handing in fires `ClientRoomTaskSubmitted` and is not the
   same thing as the coach ticking the task off.
+- **Sessions.** What happened: the sitting, when it was, the write-up, the coach's own notes, and the
+  way back to the recording and the transcript. Usually not typed here — they arrive from whatever
+  cockpit runs the sitting, once per sitting, keyed on that system's own id, so a retried delivery
+  updates instead of duplicating. A session carries the same `published_status` line as a task.
 - **Documents.** Statamic assets in one container per brand, one folder per room. Each file has a
   visible-to-client switch; the client downloads through a signed link that expires after 30 minutes
   and never sees the storage path. Only configured file types are accepted.
@@ -102,6 +106,31 @@ ClientRooms::removeSubmission($submission);          // takes its files off the 
 ClientRooms::completeTask($task);                    // idempotent, one event
 ClientRooms::reopenTask($task);
 
+$session = ClientRooms::recordSession($room, 'Lesson 12', now(), [
+    'duration_minutes' => 60,
+    'protocol' => 'We worked on the passaggio …',   // what the client reads
+    'notes' => 'Pushes on the high A.',             // never leaves the Control Panel
+]);
+
+// The same write with an identity attached: called twice with one external id,
+// this updates rather than duplicates. That is what makes a backfill safe to
+// re-run and a webhook safe to retry.
+$session = ClientRooms::importSession($room, 'a4f1…-vf-session-uuid', [
+    'title' => 'Lesson 12',
+    'held_at' => '2026-08-14T10:30:00+00:00',       // any moment a date parser reads
+    'status' => 'completed',                        // the sending system's own word
+    'published_status' => 'published',              // absent → draft, the safe side
+    'protocol' => '…',
+    'recording_url' => $temporaryUrl,
+    'recording_url_expires_at' => now()->addHours(6),
+    'has_transcript' => true,
+    'meta' => ['external_booking_id' => 'cal-778'],
+]);
+
+ClientRooms::updateSession($session, ['summary' => 'Good progress.']);
+ClientRooms::publishSession($session, false);        // back to draft
+ClientRooms::removeSession($session);
+
 $file = ClientRooms::attach($room, $uploadedFile, 'Practice plan', visibleToClient: true);
 ClientRooms::downloadUrl($file);                     // signed, expires
 
@@ -142,13 +171,19 @@ room.
 
 Variables: `id`, `name`, `email`, `status`, `opened_at`, `owner_name`, `notes_for_client`, `tasks`
 (`id`, `title`, `description`, `type`, `priority`, `status`, `estimated_minutes`, `due_at`, `done`,
-`done_at`, `overdue`, `submitted`, `submission_count`, `submissions`), `files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
+`done_at`, `overdue`, `submitted`, `submission_count`, `submissions`), `sessions` (`id`, `title`,
+`held_at`, `duration_minutes`, `status`, `agenda`, `summary`, `protocol`, `coach_name`,
+`has_protocol`, `has_recording`, `recording_url`, `has_transcript`, `transcript_url` — newest first),
+`files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
 signed URLs). A closed room, a user without one, or no user at all: `no_results`. A ready-made view
 ships as `{{ partial:statamic-clientrooms::room }}`.
 
-**`tasks` holds only published tasks.** A task on `draft` or `archived` is not in the list at all —
-not flagged, not greyed out, absent — so a template cannot leak what the coach has not finished
-writing. `status` is derived rather than stored: a task past its due date reads `overdue` without
+**`tasks` and `sessions` hold only published rows.** One on `draft` or `archived` is not in the list
+at all — not flagged, not greyed out, absent — so a template cannot leak what the coach has not
+finished writing. The coach's `notes` on a session are in neither shape.
+
+**A session's `recording_url` is null once its link has expired**, while `has_recording` stays true.
+Check the flag to show the row, the URL to decide whether to link it. `status` is derived rather than stored: a task past its due date reads `overdue` without
 anybody having written that word.
 
 **Every free-text value arrives HTML-escaped** (`name`, `owner_name`, `notes_for_client`, task and
@@ -159,6 +194,43 @@ double-encodes: Antlers reads the parameter as a string).
 **Download links are bearer links.** `url` is valid for `download_ttl_minutes` (30 by default) for
 anyone who holds it, and is produced fresh on every render. Keep the page behind your login and do
 not put the link into a mail.
+
+## Sessions
+
+A room's third noun, next to tasks and documents: what happened. A session holds the sitting itself,
+the write-up the client reads, the coach's own notes, and the way back to the recording and the
+transcript.
+
+**They usually arrive rather than being typed.** `importSession()` takes the id the sending system
+uses for that sitting and writes the row once. Called again with the same id it updates — so a
+backfill can be re-run, and a webhook that retries eight times with backoff does not leave eight
+sittings behind. If the sitting turns up pointing at a different room than last time it moves, because
+the sending system decides whose sitting it is.
+
+**A session imported without an explicit `published_status` is a draft.** The sending system published
+it or did not; absent that word, it waits in the Control Panel. A session typed by hand through
+`recordSession()` is published, on the same reasoning as a task: somebody named a client and meant it
+to arrive.
+
+**The two link fields carry an expiry, and that is the point.** A cockpit that serves recordings mints
+a signed URL per request and lets it die in a few hours. Store one bare and the client eventually
+clicks a link that used to work. Hand `recording_url_expires_at` over with it and the accessors do the
+rest:
+
+```php
+$session->hasRecording();     // a recording exists — a fact about the sitting
+$session->recordingUrl();     // …and null once the link is no longer worth handing out
+$session->hasTranscript();    // reported by the sender, link or no link
+$session->transcriptUrl();
+```
+
+Both readers — the tag and the JSON API — use the accessors, so an expired link reaches a template as
+nothing at all while `has_recording` still says the hour was recorded. That is what lets a page offer
+"ask your coach for a fresh link" instead of implying nothing was ever captured. A link stored without
+an expiry is taken at face value: a host that keeps a permanent URL means it.
+
+`notes` is the coach's desk. It is not in the tag's shape and not in the API's, and there is no reader
+for it outside the Control Panel.
 
 ## Control Panel
 
@@ -180,7 +252,7 @@ For a front end that renders itself rather than through Antlers. Turn it off wit
 `'member_api' => false` if your site uses the tag.
 
 ```
-GET   /!/statamic-clientrooms/me                          the room, its published tasks, its files
+GET   /!/statamic-clientrooms/me                          the room, its published tasks and sessions, its files
 PATCH /!/statamic-clientrooms/me/tasks/{task}             {"done": true|false}
 POST  /!/statamic-clientrooms/me/tasks/{task}/submissions {"body": "...", "files[]": …}
 ```

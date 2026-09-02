@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.5.0 — 2026-09-02
+
+What happened, and not just what is owed.
+
+### Added
+
+- **Sessions.** `client_room_sessions`, one row per sitting: title, when it was held, how long,
+  agenda, summary, the write-up the client reads, the coach's own notes, and pointers to the
+  recording and the transcript. `ClientRoom::sessions()` yields them newest first.
+- `ClientRooms::recordSession()`, `importSession()`, `updateSession()`, `publishSession()` and
+  `removeSession()` on the facade.
+- **`importSession()` is idempotent over the sending system's own id.** Called twice with one
+  `external_id` it updates rather than duplicating, which is what makes a backfill safe to re-run and
+  a webhook safe to retry. A sitting that turns up in a different room moves rather than being copied.
+  A concurrent second insert loses on the unique key and picks up the winner's row, as `open()` does.
+- **The link fields carry an expiry.** A cockpit that serves recordings mints a signed URL per
+  request; `recording_url_expires_at` and `transcript_url_expires_at` are stored beside the URLs, and
+  `recordingUrl()` / `transcriptUrl()` return null once the moment has passed. `hasRecording()` and
+  `hasTranscript()` still answer that the thing exists, so a front end can ask for a fresh link
+  instead of implying nothing was recorded. Both readers use the accessors.
+- Sessions in the `{{ client_room }}` tag and in the members JSON, published only — and never
+  `notes`, which has no reader outside the Control Panel.
+- 33 tests, organised around the three ways this goes wrong: a delivery arriving twice, a draft
+  reaching the client, a dead link being handed out.
+
+### Notes
+
+- A session imported without an explicit `published_status` is a **draft**. One typed by hand through
+  `recordSession()` is published, on the same reasoning as a task.
+- `external_id` is not fillable. It is the row's identity, written where the row is made and never by
+  an update — an update that could move it would let one sitting quietly become another.
+- Deleting a room takes its sessions with it through the model hook, not only through the foreign
+  key: SQLite enforces `ON DELETE CASCADE` only with `PRAGMA foreign_keys` on.
+
+### Still open
+
+- No Control Panel surface yet. Sessions are written and read through the facade, the tag and the
+  JSON API; the room's detail screen does not show them.
+
 ## 0.4.0 — 2026-09-02
 
 A members area that is not Antlers.

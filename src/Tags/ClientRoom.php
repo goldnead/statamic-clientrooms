@@ -5,6 +5,7 @@ namespace Goldnead\ClientRooms\Tags;
 use Goldnead\ClientRooms\ClientRoomsManager;
 use Goldnead\ClientRooms\Models\ClientRoom as Room;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
+use Goldnead\ClientRooms\Models\ClientRoomSession;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
@@ -88,6 +89,31 @@ class ClientRoom extends Tags
                         'url' => $this->rooms->submissionDownloadUrl($file),
                     ])->values()->all(),
                 ])->values()->all(),
+            ])->values()->all(),
+            // Same line as the tasks above, for the same reason: a sitting the
+            // coach has not published is absent, not hidden. `notes` is not in
+            // the shape at all — that column is the coach's desk, and this tag
+            // renders into the client's page.
+            //
+            // The links come from the accessors, so one whose signature has
+            // run out arrives as null and the template shows no button. The
+            // `has_*` flags still say the recording exists, which is what lets
+            // a page say "ask your coach" instead of nothing at all.
+            'sessions' => $room->sessions()->published()->get()->map(fn (ClientRoomSession $session): array => [
+                'id' => $session->id,
+                'title' => e($session->title),
+                'held_at' => $session->held_at,
+                'duration_minutes' => $session->duration_minutes,
+                'status' => $session->status !== null ? e($session->status) : null,
+                'agenda' => $session->agenda !== null ? e($session->agenda) : null,
+                'summary' => $session->summary !== null ? e($session->summary) : null,
+                'protocol' => $session->protocol !== null ? e($session->protocol) : null,
+                'coach_name' => $session->coach_name !== null ? e($session->coach_name) : null,
+                'has_protocol' => $session->hasProtocol(),
+                'has_recording' => $session->hasRecording(),
+                'recording_url' => $session->recordingUrl(),
+                'has_transcript' => $session->hasTranscript(),
+                'transcript_url' => $session->transcriptUrl(),
             ])->values()->all(),
             'files' => $room->files()->where('visible_to_client', true)->get()->map(fn (ClientRoomFile $file): array => [
                 'id' => $file->id,

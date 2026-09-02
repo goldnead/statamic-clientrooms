@@ -82,6 +82,11 @@ class ClientRoom extends Model
             foreach ($room->files()->get() as $file) {
                 $files->remove($file);
             }
+
+            // One statement, no per-row hooks: a sitting holds no asset of its
+            // own, only the way back to one in another system. See `sessions()`
+            // for why this is not left to the foreign key.
+            $room->sessions()->delete();
         });
     }
 
@@ -95,6 +100,30 @@ class ClientRoom extends Model
     public function files(): HasMany
     {
         return $this->hasMany(ClientRoomFile::class, 'room_id')->orderByDesc('id');
+    }
+
+    /**
+     * What happened, most recent first — the order a coach and a client both
+     * read a history in.
+     *
+     * `held_at` is nullable, and where a sitting without a time sorts depends
+     * on the driver. The `id` after it decides those among themselves, so the
+     * order is at least stable wherever it runs.
+     *
+     * Sittings carry nothing on disk, unlike tasks and documents, so deleting
+     * one strands nothing. The hook in `booted()` still takes them out itself
+     * rather than trusting the foreign key: SQLite enforces `ON DELETE
+     * CASCADE` only with `PRAGMA foreign_keys` on, and a host that runs
+     * without it would keep every sitting of a deleted room — rows about a
+     * person with nothing left to say whose they are.
+     *
+     * @return HasMany<ClientRoomSession, $this>
+     */
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(ClientRoomSession::class, 'room_id')
+            ->orderByDesc('held_at')
+            ->orderByDesc('id');
     }
 
     public function isOpen(): bool
