@@ -17,6 +17,7 @@ return [
     'task_added' => 'Task added.',
     'task_deleted' => 'Task removed.',
     'file_uploaded' => 'File uploaded.',
+    'file_type_refused' => 'This file type is not accepted. Allowed: :extensions',
     'file_deleted' => 'File removed.',
 
     // Listing

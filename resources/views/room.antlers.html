@@ -6,7 +6,9 @@
     Or copy it into resources/views/vendor/statamic-clientrooms/room.antlers.html
     (`php please vendor:publish --tag=statamic-clientrooms-views`) and shape it.
     Everything it prints comes from `{{ client_room }}`, which yields only what
-    the coach chose to share.
+    the coach chose to share. The tag hands every free-text value over
+    HTML-escaped already; `sanitize:0` below escapes anything that is not,
+    without encoding those entities a second time.
 #}}
 {{ client_room }}
     {{ if no_results }}
@@ -16,16 +18,16 @@
     {{ else }}
         <section class="client-room">
             <header class="client-room__header">
-                <h2>{{ name }}</h2>
+                <h2>{{ name | sanitize:0 }}</h2>
                 <p class="client-room__meta">
-                    {{ if owner_name }}{{ trans key="statamic-clientrooms::messages.room_owner" }}: {{ owner_name }} ·{{ /if }}
+                    {{ if owner_name }}{{ trans key="statamic-clientrooms::messages.room_owner" }}: {{ owner_name | sanitize:0 }} ·{{ /if }}
                     {{ trans key="statamic-clientrooms::messages.room_since" }} {{ opened_at format="d.m.Y" }}
                 </p>
             </header>
 
             {{ if notes_for_client }}
                 <div class="client-room__notes">
-                    {{ notes_for_client | nl2br }}
+                    {{ notes_for_client | sanitize:0 | nl2br }}
                 </div>
             {{ /if }}
 
@@ -35,7 +37,7 @@
                     <ul>
                         {{ tasks }}
                             <li class="{{ if done }}is-done{{ /if }}">
-                                <span>{{ title }}</span>
+                                <span>{{ title | sanitize:0 }}</span>
                                 {{ if due_at && !done }}<small>{{ trans key="statamic-clientrooms::messages.room_due" }} {{ due_at format="d.m.Y" }}</small>{{ /if }}
                             </li>
                         {{ /tasks }}
@@ -50,7 +52,7 @@
                 {{ if files }}
                     <ul>
                         {{ files }}
-                            <li><a href="{{ url }}" rel="nofollow">{{ title }}</a></li>
+                            <li><a href="{{ url }}" rel="nofollow">{{ title | sanitize:0 }}</a></li>
                         {{ /files }}
                     </ul>
                 {{ else }}

@@ -4,6 +4,7 @@ namespace Goldnead\ClientRooms\Support\Timeline;
 
 use Carbon\Carbon;
 use Goldnead\ClientRooms\Models\ClientRoom;
+use Goldnead\ClientRooms\Support\Contacts;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -47,18 +48,31 @@ class RoomTimeline
     public function leadhubAvailable(): bool
     {
         return class_exists('\Goldnead\Leadhub\Support\Timeline\ContactTimeline')
-            && class_exists('\Goldnead\Leadhub\Models\Contact');
+            && Contacts::available();
     }
 
     /** @return Built|null */
     protected function fromLeadhub(ClientRoom $room, int $limit): ?array
     {
-        if ($room->contact_id === null || ! $this->leadhubAvailable()) {
+        if (! $this->leadhubAvailable()) {
             return null;
         }
 
+        // A room opened before LeadHub was installed, or before the contact
+        // existed, has no link yet. Looked up once by address and brand, and
+        // kept, so the next render does not ask again.
+        if ($room->contact_id === null) {
+            $contactId = Contacts::idFor($room->email, (int) $room->brand_id);
+
+            if ($contactId === null) {
+                return null;
+            }
+
+            $room->forceFill(['contact_id' => $contactId])->saveQuietly();
+        }
+
         try {
-            $contactModel = '\Goldnead\Leadhub\Models\Contact';
+            $contactModel = Contacts::MODEL;
             $contact = $contactModel::query()->withoutGlobalScopes()->find($room->contact_id);
 
             if ($contact === null) {

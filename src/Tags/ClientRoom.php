@@ -41,25 +41,30 @@ class ClientRoom extends Tags
             return [];
         }
 
+        // Every free-text value is HTML-escaped here, once. Names, titles and
+        // notes are typed by staff and by whatever a payment webhook carried,
+        // and Antlers does not escape on output. A template that wants to
+        // escape again should use `sanitize:0` (double_encode off) so the
+        // entities are not encoded twice.
         return [
             'id' => $room->id,
-            'name' => $room->displayName(),
-            'email' => $room->email,
+            'name' => e($room->displayName()),
+            'email' => e($room->email),
             'status' => $room->status,
             'opened_at' => $room->opened_at,
-            'owner_name' => Owners::label($room->owner_user_id),
-            'notes_for_client' => $room->client_notes,
+            'owner_name' => ($owner = Owners::label($room->owner_user_id)) !== null ? e($owner) : null,
+            'notes_for_client' => $room->client_notes !== null ? e($room->client_notes) : null,
             'tasks' => $room->tasks()->get()->map(fn (ClientRoomTask $task): array => [
                 'id' => $task->id,
-                'title' => $task->title,
+                'title' => e($task->title),
                 'due_at' => $task->due_at,
                 'done' => $task->isDone(),
                 'done_at' => $task->done_at,
             ])->values()->all(),
             'files' => $room->files()->where('visible_to_client', true)->get()->map(fn (ClientRoomFile $file): array => [
                 'id' => $file->id,
-                'title' => $file->displayTitle(),
-                'filename' => basename($file->path),
+                'title' => e($file->displayTitle()),
+                'filename' => e(basename($file->path)),
                 'url' => $this->rooms->downloadUrl($file),
                 'uploaded_at' => $file->created_at,
             ])->values()->all(),

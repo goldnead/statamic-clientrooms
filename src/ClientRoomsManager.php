@@ -10,16 +10,17 @@ use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Support\Brands;
+use Goldnead\ClientRooms\Support\Contacts;
 use Goldnead\ClientRooms\Support\Emails;
 use Goldnead\ClientRooms\Support\Files\RoomFiles;
 use Goldnead\ClientRooms\Support\Owners;
 use Goldnead\ClientRooms\Support\Timeline\RoomTimeline;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
+use RuntimeException;
 use Statamic\Contracts\Auth\User as UserContract;
-use Throwable;
 
 /**
  * The public face of the addon. Everything the site, a listener or a console
@@ -28,9 +29,6 @@ use Throwable;
  */
 class ClientRoomsManager
 {
-    /** LeadHub's contact model, by name. A suggest, never imported. */
-    protected const LEADHUB_CONTACT = 'Goldnead\Leadhub\Models\Contact';
-
     public function __construct(
         protected RoomFiles $files,
         protected RoomTimeline $timeline,
@@ -60,22 +58,33 @@ class ClientRoomsManager
         $owner = Owners::resolveId($ownerUserId);
 
         if ($room === null) {
-            $room = ClientRoom::create([
-                'brand_id' => $brandId,
-                'contact_id' => $attributes['contact_id'] ?? $this->contactIdFor($email, $brandId),
-                'email' => $email,
-                'name' => $attributes['name'] ?? null,
-                'owner_user_id' => $owner,
-                'status' => ClientRoom::STATUS_OPEN,
-                'opened_at' => now(),
-                'last_activity_at' => now(),
-                'notes' => $attributes['notes'] ?? null,
-                'meta' => $attributes['meta'] ?? null,
-            ]);
+            try {
+                $room = ClientRoom::create([
+                    'brand_id' => $brandId,
+                    'contact_id' => $attributes['contact_id'] ?? Contacts::idFor($email, $brandId),
+                    'email' => $email,
+                    'name' => $attributes['name'] ?? null,
+                    'owner_user_id' => $owner,
+                    'status' => ClientRoom::STATUS_OPEN,
+                    'opened_at' => now(),
+                    'last_activity_at' => now(),
+                    'notes' => $attributes['notes'] ?? null,
+                    'meta' => $attributes['meta'] ?? null,
+                ]);
 
-            ClientRoomOpened::dispatch($room, false);
+                ClientRoomOpened::dispatch($room, false);
 
-            return $room;
+                return $room;
+            } catch (UniqueConstraintViolationException) {
+                // Two payments of one buyer, two queue workers, one moment: the
+                // other one won the insert. The unique key did its job; this
+                // side picks up that row and carries on as a second `open()`.
+                $room = $this->find($email, $brandId);
+
+                if ($room === null) {
+                    throw new RuntimeException('statamic-clientrooms: the unique key refused the room, yet no room can be found for '.$email);
+                }
+            }
         }
 
         if ($room->isOpen()) {
@@ -282,7 +291,7 @@ class ClientRoomsManager
 
         // By name, so the analyser does not narrow `$who` to a class that is
         // not installed here.
-        if ($who instanceof Model && str_ends_with(get_class($who), '\\'.self::LEADHUB_CONTACT)) {
+        if ($who instanceof Model && get_class($who) === Contacts::MODEL) {
             $attributes['contact_id'] = (int) $who->getKey();
             $attributes['name'] = trim(implode(' ', array_filter([
                 $who->getAttribute('first_name'),
@@ -298,36 +307,5 @@ class ClientRoomsManager
         }
 
         return [$email, $attributes];
-    }
-
-    /**
-     * The LeadHub contact for this address in this brand, when LeadHub is
-     * installed and has one. Read, never written: this addon does not create
-     * contacts.
-     */
-    protected function contactIdFor(string $email, int $brandId): ?int
-    {
-        if (! class_exists(self::LEADHUB_CONTACT)) {
-            return null;
-        }
-
-        try {
-            if (! Schema::hasTable('leadhub_contacts')) {
-                return null;
-            }
-
-            $model = self::LEADHUB_CONTACT;
-            $query = $model::query()->withoutGlobalScopes()->where('email_normalized', $email);
-
-            if (Schema::hasColumn('leadhub_contacts', 'brand_id')) {
-                $query->where('brand_id', $brandId);
-            }
-
-            $id = $query->orderBy('id')->value('id');
-
-            return $id !== null ? (int) $id : null;
-        } catch (Throwable) {
-            return null;
-        }
     }
 }

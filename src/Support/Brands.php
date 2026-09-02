@@ -24,6 +24,9 @@ final class Brands
     /** The sibling's global scope, by name. Registered under this name too. */
     public const SCOPE = 'Goldnead\BrandContext\Scopes\BrandScope';
 
+    /** The sibling's brand model, by name. */
+    public const MODEL = 'Goldnead\BrandContext\Models\Brand';
+
     public const SINGLE = 'single';
 
     public const MULTI = 'multi';
@@ -90,16 +93,36 @@ final class Brands
     /** The brand's display name, or null where there is nothing to name. */
     public static function label(int $brandId): ?string
     {
-        if (! self::available() || $brandId === self::NONE) {
+        if (! self::available() || $brandId === self::NONE || ! class_exists(self::MODEL)) {
             return null;
         }
 
         try {
-            $model = '\Goldnead\BrandContext\Models\Brand';
+            $model = self::MODEL;
 
             return $model::query()->whereKey($brandId)->value('name');
         } catch (Throwable) {
             return null;
+        }
+    }
+
+    /**
+     * Every brand id on a multi-brand install; empty everywhere else.
+     *
+     * @return list<int>
+     */
+    public static function ids(): array
+    {
+        if (! self::multiBrand() || ! class_exists(self::MODEL)) {
+            return [];
+        }
+
+        try {
+            $model = self::MODEL;
+
+            return array_map('intval', $model::query()->orderBy('id')->pluck('id')->all());
+        } catch (Throwable) {
+            return [];
         }
     }
 }

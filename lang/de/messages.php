@@ -17,6 +17,7 @@ return [
     'task_added' => 'Aufgabe angelegt.',
     'task_deleted' => 'Aufgabe entfernt.',
     'file_uploaded' => 'Datei hochgeladen.',
+    'file_type_refused' => 'Dieser Dateityp wird nicht angenommen. Erlaubt: :extensions',
     'file_deleted' => 'Datei entfernt.',
 
     // Liste

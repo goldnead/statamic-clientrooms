@@ -85,6 +85,37 @@ class TagTest extends TestCase
     }
 
     #[Test]
+    public function free_text_arrives_escaped_and_is_not_escaped_twice(): void
+    {
+        $room = ClientRooms::open('maria@example.com', null, ['name' => 'Müller & Söhne <b>Chor</b>']);
+        $room->forceFill(['client_notes' => "<script>alert(1)</script>\nZeile 2"])->save();
+        ClientRooms::addTask($room, '<img src=x onerror=alert(2)>');
+
+        $user = $this->userWithPermission();
+        $user->email('maria@example.com')->save();
+        $this->actingAs($user);
+
+        // The raw tag: escaped by the addon, whatever the template does.
+        $raw = $this->parse('{{ client_room }}{{ name }}|{{ notes_for_client }}|{{ tasks }}{{ title }}{{ /tasks }}{{ /client_room }}');
+
+        $this->assertStringNotContainsString('<script>', $raw);
+        $this->assertStringNotContainsString('<img', $raw);
+        $this->assertStringNotContainsString('<b>', $raw);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $raw);
+        $this->assertStringContainsString('Müller &amp; Söhne &lt;b&gt;Chor&lt;/b&gt;', $raw);
+
+        // The shipped view on top: `sanitize:false` leaves the entities alone.
+        $html = view('statamic-clientrooms::room')->render();
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+        $this->assertStringNotContainsString('&amp;lt;', $html);
+        $this->assertStringNotContainsString('&amp;amp;', $html);
+        $this->assertStringContainsString('Müller &amp; Söhne', $html);
+        $this->assertMatchesRegularExpression('/<br\s*\/?>\s*Zeile 2/', $html);
+    }
+
+    #[Test]
     public function the_shipped_view_renders(): void
     {
         $room = ClientRooms::open('maria@example.com', null, ['name' => 'Maria Beispiel']);

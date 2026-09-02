@@ -73,7 +73,23 @@ final class Owners
     }
 
     /**
-     * Every user, for the owner picker.
+     * Whether a user may open the Control Panel — the ones who can own a room.
+     *
+     * A site's members are Statamic users too, and a coaching site has many
+     * more clients than coaches. Offering every one of them as an owner would
+     * list the clients in a picker meant for staff.
+     */
+    public static function isStaff(StatamicUser $user): bool
+    {
+        try {
+            return (bool) $user->isSuper() || (bool) $user->hasPermission('access cp');
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Every staff user, for the owner picker.
      *
      * @return list<array{value: string, label: string}>
      */
@@ -81,7 +97,7 @@ final class Owners
     {
         try {
             return User::all()
-                ->filter(fn ($user) => $user instanceof StatamicUser)
+                ->filter(fn ($user) => $user instanceof StatamicUser && self::isStaff($user))
                 ->map(fn (StatamicUser $user): array => [
                     'value' => (string) $user->getAuthIdentifier(),
                     'label' => self::label((string) $user->getAuthIdentifier()) ?? (string) $user->email(),

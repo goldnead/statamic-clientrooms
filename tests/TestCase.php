@@ -4,6 +4,9 @@ namespace Goldnead\ClientRooms\Tests;
 
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\ServiceProvider;
+use Goldnead\ClientRooms\Tests\Fakes\FakeBrandManager;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Role;
@@ -39,10 +42,37 @@ abstract class TestCase extends AddonTestCase
     {
         parent::setUp();
 
+        // Whether the brand scope is added is decided when a model boots, and
+        // Eloquent boots a model once per process. Every test starts unbooted,
+        // so a test that binds the brand fake and one that does not cannot
+        // leak their decision into each other.
+        Model::clearBootedModels();
+
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
         $this->loadMigrationsFrom(__DIR__.'/database/migrations');
 
         Storage::fake('clientrooms_test');
+    }
+
+    /**
+     * Pretend brand-context is installed: multi-brand, with two brands and
+     * the given one current. Returns the manager so a test can switch.
+     */
+    protected function fakeBrandContext(?int $current = 1, bool $multi = true): FakeBrandManager
+    {
+        $manager = new FakeBrandManager($multi, $current);
+        $this->app->instance('brand-context', $manager);
+
+        Model::clearBootedModels();
+
+        if (DB::table('brands')->count() === 0) {
+            DB::table('brands')->insert([
+                ['id' => 1, 'handle' => 'nordlicht', 'name' => 'Nordlicht'],
+                ['id' => 2, 'handle' => 'chorwerkstatt', 'name' => 'Chorwerkstatt'],
+            ]);
+        }
+
+        return $manager;
     }
 
     protected function tearDown(): void
@@ -95,11 +125,17 @@ abstract class TestCase extends AddonTestCase
         return tap(User::make()->email(uniqid().'@example.com')->assignRole($role))->save();
     }
 
-    /** The container the documents go into, created the way the install command does it. */
-    protected function makeContainer(): void
+    /** A user with no role at all: a site member, never staff. */
+    protected function frontendUser(string $email)
     {
-        if (AssetContainer::findByHandle('clientrooms') === null) {
-            AssetContainer::make('clientrooms')->title('Client rooms')->disk('clientrooms_test')->save();
+        return tap(User::make()->email($email))->save();
+    }
+
+    /** The container the documents go into, created the way the install command does it. */
+    protected function makeContainer(string $handle = 'clientrooms'): void
+    {
+        if (AssetContainer::findByHandle($handle) === null) {
+            AssetContainer::make($handle)->title('Client rooms')->disk('clientrooms_test')->save();
         }
     }
 }

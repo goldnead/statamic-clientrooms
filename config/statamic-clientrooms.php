@@ -22,6 +22,25 @@ return [
     'disk' => env('CLIENTROOMS_DISK', 'local'),
 
     /*
+    | On a multi-brand install (goldnead/statamic-brand-context) each brand
+    | gets its own container, `<container>-<brandId>`, so asset permissions
+    | can be granted per brand. `clientrooms:install` creates them all.
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | What may be uploaded
+    |--------------------------------------------------------------------------
+    |
+    | File extensions a room accepts, checked at the upload endpoint and again
+    | in `ClientRooms::attach()`. An empty list accepts everything, which you
+    | do not want on a form staff use in a hurry.
+    |
+    */
+
+    'allowed_extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'mp3', 'mp4', 'zip'],
+
+    /*
     |--------------------------------------------------------------------------
     | Opening a room automatically
     |--------------------------------------------------------------------------

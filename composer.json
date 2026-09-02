@@ -20,7 +20,9 @@
       "Goldnead\\ClientRooms\\Tests\\": "tests"
     },
     "files": [
-      "tests/Fakes/payments-event.php"
+      "tests/Fakes/payments-event.php",
+      "tests/Fakes/brand-context.php",
+      "tests/Fakes/leadhub.php"
     ]
   },
   "extra": {

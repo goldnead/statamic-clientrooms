@@ -14,9 +14,9 @@ last week, the note about what to work on next. That is what a room is.
   coaching product opens it on its own.
 - **Tasks.** A short list per room: title, due date, done by whom. Ticking one fires
   `ClientRoomTaskCompleted`, once.
-- **Documents.** Statamic assets in one container, one folder per room. Each file has a
+- **Documents.** Statamic assets in one container per brand, one folder per room. Each file has a
   visible-to-client switch; the client downloads through a signed link that expires after 30 minutes
-  and never sees the storage path.
+  and never sees the storage path. Only configured file types are accepted.
 - **Timeline.** With `statamic-leadhub`, the room shows the contact's merged timeline — the same
   `ContactTimeline` LeadHub's own contact screen renders. Without it, a short list read from the
   `payments` and `bookings` tables, where those exist. Read-only either way.
@@ -60,6 +60,8 @@ default disk is `local`, which has no public URL — client documents should not
 'open_on_product_types' => ['sessions'],
 'open_on_products' => [],               // handles, whatever their kind
 
+'allowed_extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'mp3', 'mp4', 'zip'],
+
 'default_owner' => env('CLIENTROOMS_DEFAULT_OWNER'),   // user id or e-mail
 'download_ttl_minutes' => 30,
 'timeline_limit' => 100,
@@ -89,7 +91,12 @@ ClientRooms::timeline($room);                        // ['mode', 'entries', 'sou
 ```
 
 `open()` on an address that already has an open room returns that room and fires nothing. On a closed
-room it reopens it and fires `ClientRoomOpened` with `reopened = true`.
+room it reopens it and fires `ClientRoomOpened` with `reopened = true`. Two callers opening the same
+address at the same moment get the same room: the unique key decides, the loser picks up the winner's
+row.
+
+A room opened by address links LeadHub's contact of that brand when there is one; a room that has no
+link yet looks the contact up once when its timeline is first rendered, and keeps it.
 
 ## Opening rooms automatically
 
@@ -120,6 +127,15 @@ Variables: `id`, `name`, `email`, `status`, `opened_at`, `owner_name`, `notes_fo
 `uploaded_at` — visible files only, signed URLs). A closed room, a user without one, or no user at
 all: `no_results`. A ready-made view ships as `{{ partial:statamic-clientrooms::room }}`.
 
+**Every free-text value arrives HTML-escaped** (`name`, `owner_name`, `notes_for_client`, task and
+file titles, `filename`). Print them as they are; for line breaks in the notes use `| nl2br`. If your
+template escapes again, use `sanitize:0` so the entities are not encoded twice (`sanitize:false`
+double-encodes: Antlers reads the parameter as a string).
+
+**Download links are bearer links.** `url` is valid for `download_ttl_minutes` (30 by default) for
+anyone who holds it, and is produced fresh on every render. Keep the page behind your login and do
+not put the link into a mail.
+
 ## Control Panel
 
 **Tools → Clients.** The listing runs on core's `Listing` (search, sortable columns, column picker).
@@ -135,11 +151,26 @@ With `goldnead/statamic-brand-context` installed, rooms carry `brand_id` and rea
 scope; the same address may have one room per brand. Without it every row is brand `0` and nothing
 filters.
 
+Documents follow the brand: each brand gets its own asset container, `<container>-<brandId>`
+(`clientrooms-2`), created by `clientrooms:install` and again at the first upload if it is missing.
+A container is the unit Statamic grants asset permissions on — give a brand's staff
+`view clientrooms-2 assets` / `upload clientrooms-2 assets` and no other, and the Assets section
+shows them their clients' files only. The room screens themselves do not go through the asset
+permissions; they are guarded by `view client rooms` / `edit client rooms` plus the brand scope.
+
+## What may be uploaded
+
+`allowed_extensions` (default: pdf, doc, docx, xls, xlsx, ppt, pptx, png, jpg, jpeg, mp3, mp4, zip) is
+checked at the upload endpoint and again in `ClientRooms::attach()`. An empty list accepts
+everything. Files up to 50 MB.
+
 ## Tests
 
-`composer test` — facade rules, listener idempotency and product matching, permissions (403 for every
-write route without `edit client rooms`), signed links (tampered, expired, hidden, closed room), the
-tag with and without a user, the fallback timeline, the install command.
+`composer test` — facade rules and the insert race, listener idempotency and product matching,
+permissions (403 for every write route without `edit client rooms`), signed links (tampered,
+expired, hidden, closed room), the tag with and without a user and with hostile text, the fallback
+timeline and the LeadHub link, brand isolation for listing, detail, tag and containers, the file type
+list, the owner picker, the install command.
 
 ## License
 

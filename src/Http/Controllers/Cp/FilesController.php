@@ -7,6 +7,7 @@ use Goldnead\ClientRooms\Http\Controllers\Cp\Concerns\AuthorizesRooms;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
 use Goldnead\ClientRooms\Support\Owners;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Http\Controllers\CP\CpController;
 
@@ -25,10 +26,19 @@ class FilesController extends CpController
 
         $room = $this->findRoom($room);
 
+        $allowed = $this->rooms->files()->allowedExtensions();
+
         $data = $request->validate([
-            'file' => ['required', 'file', 'max:51200'],
+            'file' => array_filter([
+                'required', 'file', 'max:51200',
+                // By the client's extension, the same check `attach()` makes
+                // again for callers that do not come through this form.
+                $allowed !== [] ? 'extensions:'.implode(',', $allowed) : null,
+            ]),
             'title' => ['nullable', 'string', 'max:255'],
             'visible_to_client' => ['nullable', 'boolean'],
+        ], [
+            'file.extensions' => __('statamic-clientrooms::messages.file_type_refused', ['extensions' => implode(', ', $allowed)]),
         ]);
 
         try {
@@ -39,9 +49,9 @@ class FilesController extends CpController
                 $request->has('visible_to_client') ? $request->boolean('visible_to_client') : true,
                 Owners::currentId(),
             );
-        } catch (RuntimeException $e) {
-            // The container is missing: a configuration fault, said out loud
-            // on the field rather than as a 500 nobody can read.
+        } catch (RuntimeException|InvalidArgumentException $e) {
+            // The container could not be made, or the type is refused: said
+            // out loud on the field rather than as a 500 nobody can read.
             return back()->withErrors(['file' => $e->getMessage()]);
         }
 

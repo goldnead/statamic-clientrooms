@@ -241,14 +241,48 @@ class CpScreenTest extends TestCase
     }
 
     #[Test]
-    public function an_upload_without_the_container_says_so_instead_of_failing_silently(): void
+    public function an_upload_creates_the_container_when_install_was_forgotten(): void
     {
         $room = $this->room();
 
         $this->actingAs($this->superUser())->from('/cp/client-rooms/'.$room->id)->post('/cp/client-rooms/'.$room->id.'/files', [
             'file' => UploadedFile::fake()->create('plan.pdf', 12, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $room->files()->count());
+    }
+
+    #[Test]
+    public function a_file_type_outside_the_list_is_refused(): void
+    {
+        $this->makeContainer();
+        $room = $this->room();
+        $user = $this->superUser();
+
+        $this->actingAs($user)->from('/cp/client-rooms/'.$room->id)->post('/cp/client-rooms/'.$room->id.'/files', [
+            'file' => UploadedFile::fake()->create('setup.exe', 12, 'application/octet-stream'),
         ])->assertSessionHasErrors('file');
 
-        $this->assertSame(0, $room->files()->count());
+        $this->actingAs($user)->from('/cp/client-rooms/'.$room->id)->post('/cp/client-rooms/'.$room->id.'/files', [
+            'file' => UploadedFile::fake()->create('Plan.PDF', 12, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $room->files()->count());
+
+        // The facade makes the same check for callers that skip the form.
+        $this->expectException(\InvalidArgumentException::class);
+        ClientRooms::attach($room, UploadedFile::fake()->create('shell.php', 1));
+    }
+
+    #[Test]
+    public function an_empty_extension_list_accepts_everything(): void
+    {
+        config()->set('statamic-clientrooms.allowed_extensions', []);
+        $this->makeContainer();
+        $room = $this->room();
+
+        ClientRooms::attach($room, UploadedFile::fake()->create('anything.xyz', 1));
+
+        $this->assertSame(1, $room->files()->count());
     }
 }

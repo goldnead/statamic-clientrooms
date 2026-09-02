@@ -8,6 +8,7 @@ use Goldnead\ClientRooms\Events\ClientRoomTaskCompleted;
 use Goldnead\ClientRooms\Facades\ClientRooms;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Tests\TestCase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -147,6 +148,44 @@ class FacadeTest extends TestCase
         $room = ClientRooms::open('maria@example.com');
 
         $this->assertSame(0, $room->brand_id);
+    }
+
+    #[Test]
+    public function a_lost_insert_race_picks_up_the_winners_row(): void
+    {
+        Event::fake([ClientRoomOpened::class]);
+
+        // The other worker wins the insert between this side's lookup and its
+        // own insert. Staged from inside `creating`, which runs exactly there.
+        $raced = false;
+        ClientRoom::creating(function () use (&$raced): void {
+            if ($raced) {
+                return;
+            }
+
+            $raced = true;
+
+            DB::table('client_rooms')->insert([
+                'brand_id' => 0,
+                'email' => 'maria@example.com',
+                'name' => 'Vom anderen Worker',
+                'status' => ClientRoom::STATUS_CLOSED,
+                'opened_at' => now()->subDay(),
+                'closed_at' => now()->subHour(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $room = ClientRooms::open('maria@example.com', null, ['name' => 'Von hier']);
+
+        $this->assertSame(1, ClientRoom::query()->count());
+        $this->assertSame('Vom anderen Worker', $room->name);
+        // The winner's row was closed, so this side reopened it — the same
+        // thing a second `open()` would have done.
+        $this->assertTrue($room->isOpen());
+        Event::assertDispatchedTimes(ClientRoomOpened::class, 1);
+        Event::assertDispatched(ClientRoomOpened::class, fn (ClientRoomOpened $e) => $e->reopened === true);
     }
 
     #[Test]

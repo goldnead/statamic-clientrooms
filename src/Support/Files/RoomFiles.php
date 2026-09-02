@@ -4,8 +4,10 @@ namespace Goldnead\ClientRooms\Support\Files;
 
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
+use Goldnead\ClientRooms\Support\Brands;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\URL;
+use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Assets\Asset as StatamicAsset;
 use Statamic\Assets\AssetContainer as StatamicContainer;
@@ -14,36 +16,57 @@ use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 
 /**
- * The documents of a room, as Statamic assets in one container.
+ * The documents of a room, as Statamic assets.
  *
- * One folder per room inside the configured container. The container is
- * created by `clientrooms:install`; a missing one is a loud error rather than
- * a silent upload into nowhere, because "the file did not arrive" is the
- * failure a client notices first.
+ * One container per brand, one folder per room inside it. A container is the
+ * unit Statamic grants asset permissions on, so a multi-brand host can give a
+ * brand's staff their own container and no other; on a single-brand install
+ * there is exactly one. The container is created by `clientrooms:install` and
+ * again, if missing, at the first upload, so a brand added later is not a
+ * silent upload into nowhere.
  */
 class RoomFiles
 {
-    public function containerHandle(): string
+    /** The handle for a brand: the configured base, suffixed on a multi-brand install. */
+    public function containerHandle(int $brandId = Brands::NONE): string
     {
-        return (string) config('statamic-clientrooms.container', 'clientrooms');
+        $base = (string) config('statamic-clientrooms.container', 'clientrooms');
+
+        if ($brandId === Brands::NONE || ! Brands::multiBrand()) {
+            return $base;
+        }
+
+        return $base.'-'.$brandId;
     }
 
-    public function container(): ?ContainerContract
+    public function containerHandleFor(ClientRoom $room): string
     {
-        return AssetContainer::findByHandle($this->containerHandle());
+        return $this->containerHandle((int) $room->brand_id);
+    }
+
+    public function container(int $brandId = Brands::NONE): ?ContainerContract
+    {
+        return AssetContainer::findByHandle($this->containerHandle($brandId));
     }
 
     /**
-     * Create the container when it does not exist. Returns whether it was created now.
+     * Create the container for a brand when it does not exist. Returns
+     * whether it was created now.
      */
-    public function ensureContainer(): bool
+    public function ensureContainer(int $brandId = Brands::NONE): bool
     {
-        if ($this->container() !== null) {
+        if ($this->container($brandId) !== null) {
             return false;
         }
 
-        $container = AssetContainer::make($this->containerHandle());
-        $container->title(__('statamic-clientrooms::messages.container_title'));
+        $title = __('statamic-clientrooms::messages.container_title');
+
+        if (($label = Brands::label($brandId)) !== null) {
+            $title .= ' · '.$label;
+        }
+
+        $container = AssetContainer::make($this->containerHandle($brandId));
+        $container->title($title);
 
         // `disk()` is on the class, not on the contract the facade promises.
         if ($container instanceof StatamicContainer) {
@@ -55,19 +78,65 @@ class RoomFiles
         return true;
     }
 
+    /**
+     * Every brand that needs a container: the base one, plus one per brand on
+     * a multi-brand install.
+     *
+     * @return list<int>
+     */
+    public function brandIds(): array
+    {
+        return array_values(array_unique([Brands::NONE, ...Brands::ids()]));
+    }
+
     public function folderFor(ClientRoom $room): string
     {
         return 'room-'.$room->id;
     }
 
+    /**
+     * The file extensions a room accepts, lower-cased, from config.
+     *
+     * @return list<string>
+     */
+    public function allowedExtensions(): array
+    {
+        $configured = (array) config('statamic-clientrooms.allowed_extensions', []);
+
+        return array_values(array_unique(array_map(
+            fn ($ext) => ltrim(mb_strtolower(trim((string) $ext)), '.'),
+            array_filter($configured, fn ($ext) => is_string($ext) && trim($ext) !== ''),
+        )));
+    }
+
+    public function isAllowed(UploadedFile $file): bool
+    {
+        $allowed = $this->allowedExtensions();
+
+        if ($allowed === []) {
+            return true;
+        }
+
+        return in_array(mb_strtolower((string) $file->getClientOriginalExtension()), $allowed, true);
+    }
+
     public function attach(ClientRoom $room, UploadedFile $file, ?string $title = null, bool $visibleToClient = true, ?string $uploadedBy = null): ClientRoomFile
     {
-        $container = $this->container();
+        if (! $this->isAllowed($file)) {
+            throw new InvalidArgumentException(__('statamic-clientrooms::messages.file_type_refused', [
+                'extensions' => implode(', ', $this->allowedExtensions()),
+            ]));
+        }
+
+        $brandId = (int) $room->brand_id;
+
+        $this->ensureContainer($brandId);
+        $container = $this->container($brandId);
 
         if ($container === null) {
             throw new RuntimeException(sprintf(
-                'statamic-clientrooms: the asset container [%s] does not exist. Run `php please clientrooms:install`.',
-                $this->containerHandle(),
+                'statamic-clientrooms: the asset container [%s] could not be created. Run `php please clientrooms:install`.',
+                $this->containerHandle($brandId),
             ));
         }
 
@@ -121,7 +190,8 @@ class RoomFiles
      *
      * Signed with the application key and bound to the file id, so a link
      * cannot be edited into another file's; expires after the configured
-     * window, so a link pasted somewhere stops working on its own.
+     * window, so a link pasted somewhere stops working on its own. It is a
+     * bearer link: whoever holds it within the window may download.
      */
     public function signedUrl(ClientRoomFile $file): string
     {

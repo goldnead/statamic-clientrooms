@@ -1,7 +1,9 @@
 {
     "preset": "laravel",
     "notPath": [
-        "tests/Fakes/payments-event.php"
+        "tests/Fakes/payments-event.php",
+        "tests/Fakes/brand-context.php",
+        "tests/Fakes/leadhub.php"
     ],
     "rules": {
         "declare_strict_types": false,

@@ -9,9 +9,11 @@ use Statamic\Console\RunsInPlease;
 /**
  * `php please clientrooms:install`
  *
- * Creates the asset container the rooms' documents go into. The migration
- * runs with `php artisan migrate` like every other; the container is Statamic
- * content, not schema, and so it is made here.
+ * Creates the asset containers the rooms' documents go into: one on a
+ * single-brand install, one per brand on a multi-brand one. The migration
+ * runs with `php artisan migrate` like every other; a container is Statamic
+ * content, not schema, and so it is made here. Safe to run again after a
+ * brand was added.
  */
 class InstallCommand extends Command
 {
@@ -19,16 +21,20 @@ class InstallCommand extends Command
 
     protected $signature = 'clientrooms:install';
 
-    protected $description = 'Create the asset container for client room documents.';
+    protected $description = 'Create the asset container(s) for client room documents.';
 
     public function handle(RoomFiles $files): int
     {
-        $handle = $files->containerHandle();
+        $disk = (string) config('statamic-clientrooms.disk', 'local');
 
-        if ($files->ensureContainer()) {
-            $this->info(sprintf('Asset container [%s] created on disk [%s].', $handle, (string) config('statamic-clientrooms.disk', 'local')));
-        } else {
-            $this->line(sprintf('Asset container [%s] already exists.', $handle));
+        foreach ($files->brandIds() as $brandId) {
+            $handle = $files->containerHandle($brandId);
+
+            if ($files->ensureContainer($brandId)) {
+                $this->info(sprintf('Asset container [%s] created on disk [%s].', $handle, $disk));
+            } else {
+                $this->line(sprintf('Asset container [%s] already exists.', $handle));
+            }
         }
 
         return self::SUCCESS;

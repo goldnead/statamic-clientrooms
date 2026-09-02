@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { Head, router } from '@statamic/cms/inertia';
 import {
     Header, Button, Badge, Panel, Card, Text, DocsCallout, Field, Input, Select,
-    Textarea, Switch, Checkbox, ConfirmationModal, Alert, Icon,
+    Textarea, Switch, Checkbox, ConfirmationModal, Alert, Icon, DatePicker,
 } from '@statamic/cms/ui';
 
 /**
@@ -104,19 +104,37 @@ function formatDate(iso) {
 
 // ── Tasks ───────────────────────────────────────────────────────────────────
 
-const newTask = ref({ title: '', due_at: '' });
+const newTask = ref({ title: '', due_at: null });
 const taskErrors = ref({});
 const openTasks = computed(() => props.tasks.filter((t) => !t.done).length);
+
+/**
+ * The core DatePicker is reka-ui: its model is an @internationalized/date
+ * value with `year`, `month`, `day`, never a string. Sent raw it arrives as an
+ * object and fails the `date` rule, so it is flattened to `YYYY-MM-DD` here.
+ */
+function toDateString(value) {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+
+    if (typeof value === 'object' && value.year) {
+        const pad = (n) => String(n).padStart(2, '0');
+
+        return `${value.year}-${pad(value.month)}-${pad(value.day)}`;
+    }
+
+    return null;
+}
 
 function addTask() {
     if (!newTask.value.title.trim()) return;
 
     send('post', props.urls.tasks, {
         title: newTask.value.title,
-        due_at: newTask.value.due_at || null,
+        due_at: toDateString(newTask.value.due_at),
     }, {
         onError: (e) => { taskErrors.value = e || {}; },
-        onSuccess: () => { newTask.value = { title: '', due_at: '' }; taskErrors.value = {}; },
+        onSuccess: () => { newTask.value = { title: '', due_at: null }; taskErrors.value = {}; },
     });
 }
 
@@ -249,8 +267,8 @@ function saveNotes() {
                                 <Field class="flex-1" :error="taskErrors.title">
                                     <Input v-model="newTask.title" :placeholder="t.task_title_placeholder" />
                                 </Field>
-                                <Field class="sm:w-44" :error="taskErrors.due_at">
-                                    <Input v-model="newTask.due_at" type="date" />
+                                <Field class="sm:w-52" :error="taskErrors.due_at">
+                                    <DatePicker v-model="newTask.due_at" granularity="day" clearable />
                                 </Field>
                                 <Button type="submit" variant="primary" :text="t.task_add" :disabled="busy || !newTask.title.trim()" />
                             </div>
