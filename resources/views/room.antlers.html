@@ -1,0 +1,62 @@
+{{#
+    The client's view of their room. Include from a page in the members area:
+
+        {{ partial:statamic-clientrooms::room }}
+
+    Or copy it into resources/views/vendor/statamic-clientrooms/room.antlers.html
+    (`php please vendor:publish --tag=statamic-clientrooms-views`) and shape it.
+    Everything it prints comes from `{{ client_room }}`, which yields only what
+    the coach chose to share.
+#}}
+{{ client_room }}
+    {{ if no_results }}
+        <section class="client-room client-room--empty">
+            <p>{{ trans key="statamic-clientrooms::messages.room_none" }}</p>
+        </section>
+    {{ else }}
+        <section class="client-room">
+            <header class="client-room__header">
+                <h2>{{ name }}</h2>
+                <p class="client-room__meta">
+                    {{ if owner_name }}{{ trans key="statamic-clientrooms::messages.room_owner" }}: {{ owner_name }} ·{{ /if }}
+                    {{ trans key="statamic-clientrooms::messages.room_since" }} {{ opened_at format="d.m.Y" }}
+                </p>
+            </header>
+
+            {{ if notes_for_client }}
+                <div class="client-room__notes">
+                    {{ notes_for_client | nl2br }}
+                </div>
+            {{ /if }}
+
+            <div class="client-room__tasks">
+                <h3>{{ trans key="statamic-clientrooms::messages.room_tasks" }}</h3>
+                {{ if tasks }}
+                    <ul>
+                        {{ tasks }}
+                            <li class="{{ if done }}is-done{{ /if }}">
+                                <span>{{ title }}</span>
+                                {{ if due_at && !done }}<small>{{ trans key="statamic-clientrooms::messages.room_due" }} {{ due_at format="d.m.Y" }}</small>{{ /if }}
+                            </li>
+                        {{ /tasks }}
+                    </ul>
+                {{ else }}
+                    <p>{{ trans key="statamic-clientrooms::messages.room_tasks_none" }}</p>
+                {{ /if }}
+            </div>
+
+            <div class="client-room__files">
+                <h3>{{ trans key="statamic-clientrooms::messages.room_files" }}</h3>
+                {{ if files }}
+                    <ul>
+                        {{ files }}
+                            <li><a href="{{ url }}" rel="nofollow">{{ title }}</a></li>
+                        {{ /files }}
+                    </ul>
+                {{ else }}
+                    <p>{{ trans key="statamic-clientrooms::messages.room_files_none" }}</p>
+                {{ /if }}
+            </div>
+        </section>
+    {{ /if }}
+{{ /client_room }}
