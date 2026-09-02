@@ -12,8 +12,10 @@ last week, the note about what to work on next. That is what a room is.
 - **One room per client.** Keyed by e-mail address (and brand, on a multi-brand install). Open it by
   hand in the Control Panel or through the facade; with `statamic-payments` installed, the first paid
   coaching product opens it on its own.
-- **Tasks.** A short list per room: title, due date, done by whom. Ticking one fires
-  `ClientRoomTaskCompleted`, once.
+- **Tasks.** A list per room: title, description, kind, state, priority, an estimate in minutes, a
+  due date, done by whom. Ticking one fires `ClientRoomTaskCompleted`, once. Every task carries a
+  `published_status`, and only `published` reaches the client — a task the coach is still writing is
+  in the Control Panel and nowhere else.
 - **Documents.** Statamic assets in one container per brand, one folder per room. Each file has a
   visible-to-client switch; the client downloads through a signed link that expires after 30 minutes
   and never sees the storage path. Only configured file types are accepted.
@@ -80,7 +82,15 @@ ClientRooms::reopen($room);                          // or open() again
 ClientRooms::forEmail('maria@example.com');          // ?ClientRoom, current brand
 ClientRooms::forUser(User::current());               // by the user's address
 
-$task = ClientRooms::addTask($room, 'Send the recording', now()->addWeek());
+$task = ClientRooms::addTask($room, 'Send the recording', now()->addWeek(), null, [
+    'description' => 'Two minutes, quiet, no click.',
+    'type' => 'exercise',                            // see config `task_types`
+    'priority' => 'high',                            // low|medium|high|urgent
+    'estimated_minutes' => 15,
+]);
+
+ClientRooms::updateTask($task, ['priority' => 'low']);   // only the keys you hand over
+ClientRooms::publishTask($task, false);              // back to draft: the client stops seeing it
 ClientRooms::completeTask($task);                    // idempotent, one event
 ClientRooms::reopenTask($task);
 
@@ -123,9 +133,15 @@ room.
 ```
 
 Variables: `id`, `name`, `email`, `status`, `opened_at`, `owner_name`, `notes_for_client`, `tasks`
-(`id`, `title`, `due_at`, `done`, `done_at`), `files` (`id`, `title`, `filename`, `url`,
-`uploaded_at` — visible files only, signed URLs). A closed room, a user without one, or no user at
-all: `no_results`. A ready-made view ships as `{{ partial:statamic-clientrooms::room }}`.
+(`id`, `title`, `description`, `type`, `priority`, `status`, `estimated_minutes`, `due_at`, `done`,
+`done_at`, `overdue`), `files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
+signed URLs). A closed room, a user without one, or no user at all: `no_results`. A ready-made view
+ships as `{{ partial:statamic-clientrooms::room }}`.
+
+**`tasks` holds only published tasks.** A task on `draft` or `archived` is not in the list at all —
+not flagged, not greyed out, absent — so a template cannot leak what the coach has not finished
+writing. `status` is derived rather than stored: a task past its due date reads `overdue` without
+anybody having written that word.
 
 **Every free-text value arrives HTML-escaped** (`name`, `owner_name`, `notes_for_client`, task and
 file titles, `filename`). Print them as they are; for line breaks in the notes use `| nl2br`. If your
@@ -141,6 +157,11 @@ not put the link into a mail.
 **Tools → Clients.** The listing runs on core's `Listing` (search, sortable columns, column picker).
 The detail page has the tasks, the documents with upload and visibility switch, the timeline, the
 owner, and both note fields. Close and reopen from the header.
+
+A task is added with a title and a date; **More fields** folds out description, kind, priority,
+minutes and the visibility switch. Each row carries that switch too, so a task can be taken back off
+the client's screen with one click, and the pencil opens the whole task for editing in place. A task
+that is not visible says so next to its title.
 
 Permissions: `view client rooms` (listing, detail, downloads) and `edit client rooms` (everything that
 writes). Every write route is guarded twice: `can:` middleware and the Gate in the controller.

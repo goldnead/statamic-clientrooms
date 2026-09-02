@@ -98,6 +98,48 @@ return [
     'task_overdue' => 'Overdue',
     'task_delete_title' => 'Remove this task?',
     'task_delete_body' => 'The task is deleted. This cannot be undone.',
+    'task_description' => 'Description',
+    'task_description_placeholder' => 'What exactly is this about?',
+    'task_type' => 'Kind',
+    'task_type_none' => 'No kind',
+    'task_status' => 'State',
+    'task_priority' => 'Priority',
+    'task_priority_none' => 'No priority',
+    'task_minutes' => 'Takes about',
+    'task_minutes_unit' => 'min',
+    'task_visible' => 'Visible to the client',
+    'task_visible_help' => 'Off: the task stays here and does not appear in their room.',
+    'task_draft' => 'Draft',
+    'task_archived' => 'Archived',
+    'task_more' => 'More fields',
+    'task_less' => 'Less',
+    'task_edit' => 'Edit',
+    'task_publish' => 'Make visible',
+    'task_unpublish' => 'Back to draft',
+    'tasks_draft_count' => ':count in draft',
+
+    // The kind of task. Extend it in the config; a value without a translation
+    // shows exactly as it is written there.
+    'task_type_exercise' => 'Exercise',
+    'task_type_homework' => 'Homework',
+    'task_type_practice' => 'Practice',
+    'task_type_listening' => 'Listening',
+    'task_type_reflection' => 'Reflection',
+
+    'task_status_assigned' => 'Open',
+    'task_status_in_progress' => 'In progress',
+    'task_status_completed' => 'Done',
+    'task_status_overdue' => 'Overdue',
+    'task_status_cancelled' => 'Called off',
+
+    'task_priority_low' => 'Low',
+    'task_priority_medium' => 'Medium',
+    'task_priority_high' => 'High',
+    'task_priority_urgent' => 'Urgent',
+
+    'task_published_draft' => 'Draft',
+    'task_published_published' => 'Visible',
+    'task_published_archived' => 'Archived',
 
     // Files
     'panel_files' => 'Documents',

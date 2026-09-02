@@ -36,8 +36,9 @@
                 {{ if tasks }}
                     <ul>
                         {{ tasks }}
-                            <li class="{{ if done }}is-done{{ /if }}">
+                            <li class="{{ if done }}is-done{{ /if }}{{ if overdue }} is-overdue{{ /if }}">
                                 <span>{{ title | sanitize:0 }}</span>
+                                {{ if description }}<p class="client-room__task-description">{{ description | sanitize:0 | nl2br }}</p>{{ /if }}
                                 {{ if due_at && !done }}<small>{{ trans key="statamic-clientrooms::messages.room_due" }} {{ due_at format="d.m.Y" }}</small>{{ /if }}
                             </li>
                         {{ /tasks }}

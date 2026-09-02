@@ -42,6 +42,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Kinds of task
+    |--------------------------------------------------------------------------
+    |
+    | What the Control Panel offers in the task form's `type` dropdown, and the
+    | only values it accepts there. A task needs no type at all; the column is
+    | nullable and an empty list turns the dropdown off.
+    |
+    | These are handles, not labels. A handle with a translation under
+    | `statamic-clientrooms::messages.task_type_<handle>` is shown with it;
+    | anything else is shown as written here, so a practice of your own needs
+    | no language file.
+    |
+    | Nothing validates a type written through the facade — an import brings
+    | years of vocabulary with it and must not lose a task to a list.
+    |
+    */
+
+    'task_types' => ['exercise', 'homework', 'practice', 'listening', 'reflection'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Opening a room automatically
     |--------------------------------------------------------------------------
     |

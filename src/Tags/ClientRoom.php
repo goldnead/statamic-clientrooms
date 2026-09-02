@@ -16,9 +16,10 @@ use Statamic\Tags\Tags;
  * Finds the room by the current Statamic user's e-mail address; nothing else
  * can address it, so a template cannot render somebody else's. Yields only
  * what the client may see: `client_notes` under `notes_for_client`, files
- * marked visible with a signed URL each, and the tasks. The coach's own
- * `notes` never leave the Control Panel. Nobody signed in, no room, or a
- * closed room: `no_results`.
+ * marked visible with a signed URL each, and the tasks the coach has
+ * published. The coach's own `notes` never leave the Control Panel, and
+ * neither does a task still on `draft` or put away on `archived`. Nobody
+ * signed in, no room, or a closed room: `no_results`.
  */
 class ClientRoom extends Tags
 {
@@ -54,12 +55,22 @@ class ClientRoom extends Tags
             'opened_at' => $room->opened_at,
             'owner_name' => ($owner = Owners::label($room->owner_user_id)) !== null ? e($owner) : null,
             'notes_for_client' => $room->client_notes !== null ? e($room->client_notes) : null,
-            'tasks' => $room->tasks()->get()->map(fn (ClientRoomTask $task): array => [
+            // `published()` is the line. A task the coach is still writing, or
+            // one put away as archived, is not in this list at all — not
+            // greyed out, not flagged, absent. The template cannot leak what
+            // it never receives.
+            'tasks' => $room->tasks()->published()->get()->map(fn (ClientRoomTask $task): array => [
                 'id' => $task->id,
                 'title' => e($task->title),
+                'description' => $task->description !== null ? e($task->description) : null,
+                'type' => $task->type !== null ? e($task->type) : null,
+                'priority' => $task->priority !== null ? e($task->priority) : null,
+                'status' => $task->workflowStatus(),
+                'estimated_minutes' => $task->estimated_minutes,
                 'due_at' => $task->due_at,
                 'done' => $task->isDone(),
                 'done_at' => $task->done_at,
+                'overdue' => $task->isOverdue(),
             ])->values()->all(),
             'files' => $room->files()->where('visible_to_client', true)->get()->map(fn (ClientRoomFile $file): array => [
                 'id' => $file->id,

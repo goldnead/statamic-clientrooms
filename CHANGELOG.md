@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.0 — 2026-09-03
+
+A task can now carry the work, and the coach decides when the client sees it.
+
+### Added
+
+- Six columns on `client_room_tasks`, one additive migration with a `down()`: `description`,
+  `type`, `status`, `published_status`, `priority`, `estimated_minutes`.
+- **`published_status` is the line between the coach's desk and the client's room.** Only
+  `published` reaches `{{ client_room }}`; `draft` and `archived` are absent from the list the
+  template receives, not merely flagged in it.
+- `ClientRooms::updateTask()` and `ClientRooms::publishTask()`. `addTask()` takes a fifth argument,
+  an attributes array, so a whole imported row can be handed over at once.
+- `ClientRoomTask::workflowStatus()`, derived rather than stored: done wins, a task called off stays
+  cancelled, a task past its date reads `overdue` without anybody having written that word.
+- Control Panel: the add form folds out description, kind, priority, minutes and a visibility
+  switch; every task row has that switch and a pencil that opens the task for editing in place.
+- Config `task_types` — the kinds the Control Panel offers, extendable, translated where a
+  translation exists. The facade validates none of it: an import brings years of a coach's own
+  vocabulary and must not lose a task to a list.
+
+### Notes on upgrading
+
+- Tasks that existed before this version are stamped `published` by the migration. Nobody's client
+  loses a task because the addon grew a column.
+- The column's own default is `draft`, so a row written straight into the table — an import, a
+  fixture — stays invisible until somebody has an opinion about it. `addTask()` publishes, because
+  somebody named a client, typed a title and meant it to arrive.
+- Ticking a task now also sets `status` to `completed`, and unticking sets it to `assigned`.
+
 ## 0.1.0 — 2026-09-02
 
 First cut. One lasting room per coaching client.

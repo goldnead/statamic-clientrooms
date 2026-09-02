@@ -8,6 +8,7 @@ use Goldnead\ClientRooms\Http\Controllers\Cp\Concerns\AuthorizesRooms;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Support\Owners;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Statamic\Http\Controllers\CP\CpController;
 
 class TasksController extends CpController
@@ -25,22 +26,31 @@ class TasksController extends CpController
 
         $room = $this->findRoom($room);
 
-        $data = $request->validate([
+        $data = $request->validate(array_merge([
             'title' => ['required', 'string', 'max:255'],
             'due_at' => ['nullable', 'date'],
-        ]);
+        ], $this->fieldRules()));
 
         $this->rooms->addTask(
             $room,
             $data['title'],
             ! empty($data['due_at']) ? Carbon::parse($data['due_at'])->endOfDay() : null,
             Owners::currentId(),
+            $this->fields($request, $data),
         );
 
         return back()->with('success', __('statamic-clientrooms::messages.task_added'));
     }
 
-    /** Tick or untick. */
+    /**
+     * Tick or untick, and change what the task says.
+     *
+     * One route, two jobs, because the checkbox and the edit form sit on the
+     * same row of the same screen. `done` alone is the tick; everything else
+     * goes through `updateTask()`, which never touches `done_at`. So a form
+     * that sends `status: completed` says what the coach means by it and does
+     * not quietly tick the box on his behalf.
+     */
     public function update(Request $request, int $room, int $task)
     {
         $this->authorize('edit client rooms');
@@ -48,17 +58,83 @@ class TasksController extends CpController
         $room = $this->findRoom($room);
         $task = $this->task($room->id, $task);
 
-        $data = $request->validate([
-            'done' => ['required', 'boolean'],
-        ]);
+        $data = $request->validate(array_merge([
+            'done' => ['sometimes', 'boolean'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'due_at' => ['sometimes', 'nullable', 'date'],
+        ], $this->fieldRules()));
 
-        if ($request->boolean('done')) {
-            $this->rooms->completeTask($task, Owners::currentId());
-        } else {
-            $this->rooms->reopenTask($task);
+        $fields = $this->fields($request, $data);
+
+        if (array_key_exists('title', $data)) {
+            $fields['title'] = $data['title'];
+        }
+
+        if (array_key_exists('due_at', $data)) {
+            $fields['due_at'] = ! empty($data['due_at']) ? Carbon::parse($data['due_at'])->endOfDay() : null;
+        }
+
+        if ($fields !== []) {
+            $this->rooms->updateTask($task, $fields);
+        }
+
+        if ($request->has('done')) {
+            if ($request->boolean('done')) {
+                $this->rooms->completeTask($task, Owners::currentId());
+            } else {
+                $this->rooms->reopenTask($task);
+            }
         }
 
         return back()->with('success', __('statamic-clientrooms::messages.saved'));
+    }
+
+    /**
+     * The rules for everything a task carries beyond title and due date.
+     *
+     * `sometimes` throughout: the same set serves the add form, which sends
+     * all of them, and an edit that sends one. The vocabularies are checked
+     * here and nowhere else — the facade takes what an import brings, because
+     * years of a coach's own words must not be lost to a list.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    protected function fieldRules(): array
+    {
+        return [
+            'description' => ['sometimes', 'nullable', 'string', 'max:65535'],
+            'type' => ['sometimes', 'nullable', 'string', Rule::in($this->taskTypes())],
+            'status' => ['sometimes', 'nullable', 'string', Rule::in(ClientRoomTask::STATUSES)],
+            'published_status' => ['sometimes', 'string', Rule::in(ClientRoomTask::PUBLISHED_STATUSES)],
+            'priority' => ['sometimes', 'nullable', 'string', Rule::in(ClientRoomTask::PRIORITIES)],
+            'estimated_minutes' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100000'],
+        ];
+    }
+
+    /**
+     * Only the keys the request actually sent, so an edit of one field leaves
+     * the other five where they were.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function fields(Request $request, array $data): array
+    {
+        $fields = [];
+
+        foreach (['description', 'type', 'status', 'published_status', 'priority', 'estimated_minutes'] as $key) {
+            if ($request->has($key)) {
+                $fields[$key] = $data[$key] ?? null;
+            }
+        }
+
+        return $fields;
+    }
+
+    /** @return list<string> */
+    protected function taskTypes(): array
+    {
+        return array_values(array_filter((array) config('statamic-clientrooms.task_types', []), 'is_string'));
     }
 
     public function destroy(int $room, int $task)

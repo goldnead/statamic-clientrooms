@@ -22,6 +22,7 @@ const props = defineProps({
     timelineTotal: { type: Number, default: 0 },
     timelineSources: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({}) },
+    taskOptions: { type: Object, default: () => ({ types: [], statuses: [], priorities: [], published: [] }) },
     owners: { type: Array, default: () => [] },
     canEdit: { type: Boolean, default: false },
     urls: { type: Object, required: true },
@@ -104,9 +105,70 @@ function formatDate(iso) {
 
 // ── Tasks ───────────────────────────────────────────────────────────────────
 
-const newTask = ref({ title: '', due_at: null });
+const emptyTask = () => ({
+    title: '',
+    due_at: null,
+    description: '',
+    type: null,
+    priority: null,
+    estimated_minutes: null,
+    // A task typed here is meant to arrive. Switching this off is how a coach
+    // parks one on his desk, and the switch is the only place `draft` is
+    // reachable from — hence the plain word on it, not the word `draft`.
+    visible: true,
+});
+
+const newTask = ref(emptyTask());
+const showTaskFields = ref(false);
 const taskErrors = ref({});
 const openTasks = computed(() => props.tasks.filter((t) => !t.done).length);
+const draftTasks = computed(() => props.tasks.filter((t) => t.draft).length);
+
+const typeOptions = computed(() => [
+    { value: null, label: props.t.task_type_none },
+    ...(props.taskOptions.types || []),
+]);
+
+const priorityOptions = computed(() => [
+    { value: null, label: props.t.task_priority_none },
+    ...(props.taskOptions.priorities || []),
+]);
+
+const statusOptions = computed(() => props.taskOptions.statuses || []);
+
+/** Open first, drafts second, and nothing at all when there is neither. */
+const taskSubheading = computed(() => {
+    const parts = [];
+
+    if (openTasks.value) parts.push(props.t.tasks_open_count.replace(':count', String(openTasks.value)));
+    if (draftTasks.value) parts.push(props.t.tasks_draft_count.replace(':count', String(draftTasks.value)));
+
+    return parts.length ? parts.join(' · ') : undefined;
+});
+
+/**
+ * The small grey line under a task, assembled rather than concatenated: a
+ * task with a duration and no date must not start with a stray separator.
+ */
+function taskMeta(task) {
+    const parts = [];
+
+    if (task.done && task.done_human) parts.push(`${props.t.task_done} · ${task.done_human}`);
+    else if (task.due_at) parts.push(`${props.t.task_due} ${task.due_human}`);
+
+    if (task.estimated_minutes) parts.push(`${task.estimated_minutes} ${props.t.task_minutes_unit}`);
+
+    return parts.join(' · ');
+}
+
+/** A number field hands back a string, and '' has to stay null, not become 0. */
+function toMinutes(value) {
+    if (value === null || value === undefined || value === '') return null;
+
+    const n = Number(value);
+
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
 
 /**
  * The core DatePicker is reka-ui: its model is an @internationalized/date
@@ -129,17 +191,81 @@ function toDateString(value) {
 function addTask() {
     if (!newTask.value.title.trim()) return;
 
+    const task = newTask.value;
+
     send('post', props.urls.tasks, {
-        title: newTask.value.title,
-        due_at: toDateString(newTask.value.due_at),
+        title: task.title,
+        due_at: toDateString(task.due_at),
+        description: task.description || null,
+        type: task.type || null,
+        priority: task.priority || null,
+        estimated_minutes: toMinutes(task.estimated_minutes),
+        published_status: task.visible ? 'published' : 'draft',
     }, {
         onError: (e) => { taskErrors.value = e || {}; },
-        onSuccess: () => { newTask.value = { title: '', due_at: null }; taskErrors.value = {}; },
+        onSuccess: () => {
+            newTask.value = emptyTask();
+            showTaskFields.value = false;
+            taskErrors.value = {};
+        },
     });
 }
 
 function toggleTask(task, done) {
     send('patch', task.update_url, { done });
+}
+
+/** The one switch that decides whether the client sees this task at all. */
+function toggleTaskVisible(task, visible) {
+    send('patch', task.update_url, { published_status: visible ? 'published' : 'draft' });
+}
+
+// ── Editing one task ────────────────────────────────────────────────────────
+
+const editingId = ref(null);
+const editTask = ref(null);
+const editErrors = ref({});
+
+function startEdit(task) {
+    editingId.value = task.id;
+    editErrors.value = {};
+    editTask.value = {
+        title: task.title,
+        due_at: task.due_at,
+        description: task.description ?? '',
+        type: task.type ?? null,
+        status: task.status ?? 'assigned',
+        priority: task.priority ?? null,
+        estimated_minutes: task.estimated_minutes ?? null,
+        published_status: task.published_status,
+        update_url: task.update_url,
+    };
+}
+
+function cancelEdit() {
+    editingId.value = null;
+    editTask.value = null;
+    editErrors.value = {};
+}
+
+function saveEdit() {
+    const edit = editTask.value;
+
+    if (!edit || !edit.title.trim()) return;
+
+    send('patch', edit.update_url, {
+        title: edit.title,
+        due_at: toDateString(edit.due_at),
+        description: edit.description || null,
+        type: edit.type || null,
+        status: edit.status || null,
+        priority: edit.priority || null,
+        estimated_minutes: toMinutes(edit.estimated_minutes),
+        published_status: edit.published_status,
+    }, {
+        onError: (e) => { editErrors.value = e || {}; },
+        onSuccess: () => cancelEdit(),
+    });
 }
 
 const deletingTask = ref(null);
@@ -150,6 +276,22 @@ function removeTask() {
 
     if (task) send('delete', task.delete_url);
 }
+
+/** Badge colour by what the task is actually doing, not by what is stored. */
+const statusColor = (status) => ({
+    assigned: 'default',
+    'in-progress': 'blue',
+    completed: 'green',
+    overdue: 'red',
+    cancelled: 'default',
+}[status] ?? 'default');
+
+const priorityColor = (priority) => ({
+    low: 'default',
+    medium: 'default',
+    high: 'amber',
+    urgent: 'red',
+}[priority] ?? 'default');
 
 // ── Files ───────────────────────────────────────────────────────────────────
 
@@ -227,38 +369,110 @@ function saveNotes() {
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
                 <!-- Tasks -->
-                <Panel :heading="t.panel_tasks" :subheading="openTasks ? t.tasks_open_count.replace(':count', String(openTasks)) : undefined">
+                <Panel :heading="t.panel_tasks" :subheading="taskSubheading">
                     <Card>
                         <div v-if="tasks.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                             {{ t.tasks_empty }}
                         </div>
                         <ul v-else class="-my-2 divide-y divide-content-border">
-                            <li v-for="task in tasks" :key="task.id" class="flex items-start justify-between gap-3 py-2">
-                                <div class="flex min-w-0 items-start gap-3">
-                                    <!-- `solo`: a checkbox with no label of its own; the title beside it is the label. -->
-                                    <Checkbox
-                                        :model-value="task.done"
-                                        solo
-                                        :disabled="!canEdit || busy"
-                                        @update:model-value="toggleTask(task, $event)"
-                                    />
-                                    <div class="min-w-0">
-                                        <div class="text-sm" :class="task.done ? 'line-through text-gray-500 dark:text-gray-400' : ''">{{ task.title }}</div>
-                                        <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <span v-if="task.done && task.done_human">{{ t.task_done }} · {{ task.done_human }}</span>
-                                            <span v-else-if="task.due_at" :title="task.due_at">{{ t.task_due }} {{ task.due_human }}</span>
-                                            <Badge v-if="task.overdue" size="sm" color="red" :text="t.task_overdue" />
-                                        </div>
+                            <li v-for="task in tasks" :key="task.id" class="py-2">
+                                <!-- Editing: the row becomes the form, in place. -->
+                                <div v-if="editingId === task.id" class="space-y-3">
+                                    <Field :label="t.task_title_placeholder" :error="editErrors.title">
+                                        <Input v-model="editTask.title" />
+                                    </Field>
+                                    <Field :label="t.task_description" :error="editErrors.description">
+                                        <Textarea v-model="editTask.description" :rows="3" />
+                                    </Field>
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <!-- A plain date input rather than core's `<DatePicker>`,
+                                             and for the reason `statamic-offers` writes down:
+                                             the component hands its `modelValue` to reka-ui,
+                                             which calls `.copy()` on it. A stored date arrives
+                                             here as a string, so the component throws during
+                                             setup and the field renders as nothing at all. The
+                                             add form above keeps the picker — its model starts
+                                             empty and never sees a string. -->
+                                        <Field :label="t.task_due" :error="editErrors.due_at">
+                                            <Input v-model="editTask.due_at" type="date" />
+                                        </Field>
+                                        <Field :label="t.task_type" :error="editErrors.type">
+                                            <Select v-model="editTask.type" :options="typeOptions" />
+                                        </Field>
+                                        <Field :label="t.task_status" :error="editErrors.status">
+                                            <Select v-model="editTask.status" :options="statusOptions" />
+                                        </Field>
+                                        <Field :label="t.task_priority" :error="editErrors.priority">
+                                            <Select v-model="editTask.priority" :options="priorityOptions" />
+                                        </Field>
+                                        <Field :label="t.task_minutes" :error="editErrors.estimated_minutes">
+                                            <Input v-model="editTask.estimated_minutes" type="number" min="0" :append="t.task_minutes_unit" />
+                                        </Field>
+                                    </div>
+                                    <Field :instructions="t.task_visible_help" :error="editErrors.published_status">
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <Switch
+                                                :model-value="editTask.published_status === 'published'"
+                                                size="sm"
+                                                @update:model-value="editTask.published_status = $event ? 'published' : 'draft'"
+                                            />
+                                            <span>{{ t.task_visible }}</span>
+                                        </label>
+                                    </Field>
+                                    <div class="flex justify-end gap-2">
+                                        <Button variant="ghost" size="sm" :text="t.cancel" :disabled="busy" @click="cancelEdit" />
+                                        <Button variant="primary" size="sm" :text="t.save" :disabled="busy || !editTask.title.trim()" @click="saveEdit" />
                                     </div>
                                 </div>
-                                <Button
-                                    v-if="canEdit"
-                                    icon="trash"
-                                    variant="ghost"
-                                    size="sm"
-                                    :aria-label="t.delete"
-                                    @click="deletingTask = task"
-                                />
+
+                                <div v-else class="flex items-start justify-between gap-3">
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <!-- `solo`: a checkbox with no label of its own; the title beside it is the label. -->
+                                        <Checkbox
+                                            :model-value="task.done"
+                                            solo
+                                            :disabled="!canEdit || busy"
+                                            @update:model-value="toggleTask(task, $event)"
+                                        />
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-sm" :class="task.done ? 'line-through text-gray-500 dark:text-gray-400' : ''">{{ task.title }}</span>
+                                                <!-- Not visible to the client: said plainly, next to the title, not hidden in a panel. -->
+                                                <Badge v-if="task.draft" size="sm" color="amber" :text="t.task_draft" />
+                                                <Badge v-else-if="task.published_status === 'archived'" size="sm" :text="t.task_archived" />
+                                                <Badge v-if="task.type_label" size="sm" :text="task.type_label" />
+                                                <Badge
+                                                    v-if="task.priority && task.priority !== 'low' && task.priority !== 'medium'"
+                                                    size="sm"
+                                                    :color="priorityColor(task.priority)"
+                                                    :text="task.priority_label"
+                                                />
+                                            </div>
+                                            <p v-if="task.description" class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ task.description }}</p>
+                                            <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
+                                                <span v-if="taskMeta(task)" :title="task.due_at || undefined">{{ taskMeta(task) }}</span>
+                                                <Badge v-if="task.overdue" size="sm" color="red" :text="t.task_overdue" />
+                                                <Badge
+                                                    v-else-if="!task.done && task.workflow_status !== 'assigned'"
+                                                    size="sm"
+                                                    :color="statusColor(task.workflow_status)"
+                                                    :text="task.status_label"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="canEdit" class="flex shrink-0 items-center gap-1">
+                                        <Switch
+                                            :model-value="task.published"
+                                            size="sm"
+                                            :disabled="busy"
+                                            :aria-label="task.published ? t.task_unpublish : t.task_publish"
+                                            @update:model-value="toggleTaskVisible(task, $event)"
+                                        />
+                                        <Button icon="edit" variant="ghost" size="sm" :aria-label="t.task_edit" @click="startEdit(task)" />
+                                        <Button icon="trash" variant="ghost" size="sm" :aria-label="t.delete" @click="deletingTask = task" />
+                                    </div>
+                                </div>
                             </li>
                         </ul>
 
@@ -271,6 +485,40 @@ function saveNotes() {
                                     <DatePicker v-model="newTask.due_at" granularity="day" clearable />
                                 </Field>
                                 <Button type="submit" variant="primary" :text="t.task_add" :disabled="busy || !newTask.title.trim()" />
+                            </div>
+
+                            <!-- Folded away: a title and a date is the everyday case, and
+                                 five more fields in the way would make it the rare one. -->
+                            <div class="mt-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    :text="showTaskFields ? t.task_less : t.task_more"
+                                    @click="showTaskFields = !showTaskFields"
+                                />
+                            </div>
+
+                            <div v-if="showTaskFields" class="mt-3 space-y-3">
+                                <Field :label="t.task_description" :error="taskErrors.description">
+                                    <Textarea v-model="newTask.description" :rows="3" :placeholder="t.task_description_placeholder" />
+                                </Field>
+                                <div class="grid gap-3 sm:grid-cols-3">
+                                    <Field :label="t.task_type" :error="taskErrors.type">
+                                        <Select v-model="newTask.type" :options="typeOptions" />
+                                    </Field>
+                                    <Field :label="t.task_priority" :error="taskErrors.priority">
+                                        <Select v-model="newTask.priority" :options="priorityOptions" />
+                                    </Field>
+                                    <Field :label="t.task_minutes" :error="taskErrors.estimated_minutes">
+                                        <Input v-model="newTask.estimated_minutes" type="number" min="0" :append="t.task_minutes_unit" />
+                                    </Field>
+                                </div>
+                                <Field :instructions="t.task_visible_help" :error="taskErrors.published_status">
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <Switch v-model="newTask.visible" size="sm" />
+                                        <span>{{ t.task_visible }}</span>
+                                    </label>
+                                </Field>
                             </div>
                         </form>
                     </Card>

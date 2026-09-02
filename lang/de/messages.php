@@ -98,6 +98,48 @@ return [
     'task_overdue' => 'Überfällig',
     'task_delete_title' => 'Diese Aufgabe entfernen?',
     'task_delete_body' => 'Die Aufgabe wird gelöscht. Das lässt sich nicht rückgängig machen.',
+    'task_description' => 'Beschreibung',
+    'task_description_placeholder' => 'Worum geht es genau?',
+    'task_type' => 'Art',
+    'task_type_none' => 'Ohne Art',
+    'task_status' => 'Stand',
+    'task_priority' => 'Priorität',
+    'task_priority_none' => 'Ohne Priorität',
+    'task_minutes' => 'Dauer',
+    'task_minutes_unit' => 'Min.',
+    'task_visible' => 'Für den Klienten sichtbar',
+    'task_visible_help' => 'Aus: die Aufgabe bleibt hier liegen und erscheint in seinem Raum nicht.',
+    'task_draft' => 'Entwurf',
+    'task_archived' => 'Abgelegt',
+    'task_more' => 'Mehr Felder',
+    'task_less' => 'Weniger',
+    'task_edit' => 'Bearbeiten',
+    'task_publish' => 'Sichtbar machen',
+    'task_unpublish' => 'Zurück in den Entwurf',
+    'tasks_draft_count' => ':count im Entwurf',
+
+    // Art einer Aufgabe. Frei erweiterbar über die Konfiguration; ein Wert ohne
+    // Übersetzung erscheint so, wie er dort steht.
+    'task_type_exercise' => 'Übung',
+    'task_type_homework' => 'Hausaufgabe',
+    'task_type_practice' => 'Übe-Einheit',
+    'task_type_listening' => 'Hören',
+    'task_type_reflection' => 'Reflexion',
+
+    'task_status_assigned' => 'Offen',
+    'task_status_in_progress' => 'In Arbeit',
+    'task_status_completed' => 'Erledigt',
+    'task_status_overdue' => 'Überfällig',
+    'task_status_cancelled' => 'Abgesagt',
+
+    'task_priority_low' => 'Niedrig',
+    'task_priority_medium' => 'Mittel',
+    'task_priority_high' => 'Hoch',
+    'task_priority_urgent' => 'Dringend',
+
+    'task_published_draft' => 'Entwurf',
+    'task_published_published' => 'Sichtbar',
+    'task_published_archived' => 'Abgelegt',
 
     // Unterlagen
     'panel_files' => 'Unterlagen',

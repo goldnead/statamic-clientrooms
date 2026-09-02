@@ -156,7 +156,21 @@ class ClientRoomsManager
         return is_string($email) ? $this->forEmail($email) : null;
     }
 
-    public function addTask(ClientRoom|int $room, string $title, ?DateTimeInterface $dueAt = null, ?string $createdBy = null): ClientRoomTask
+    /**
+     * Put something to do into a room.
+     *
+     * `$attributes` carries the rest of the task — `description`, `type`,
+     * `status`, `published_status`, `priority`, `estimated_minutes`. Anything
+     * else in it is ignored, so a caller may hand over a whole imported row.
+     *
+     * A task made here is `published` unless told otherwise: somebody named a
+     * client, typed a title and meant it to arrive. The column's own default
+     * is `draft` and guards the other direction — a row written straight into
+     * the table stays invisible until somebody has an opinion about it.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function addTask(ClientRoom|int $room, string $title, ?DateTimeInterface $dueAt = null, ?string $createdBy = null, array $attributes = []): ClientRoomTask
     {
         $room = $this->room($room);
 
@@ -168,22 +182,70 @@ class ClientRoomsManager
 
         $position = ((int) $room->tasks()->max('position')) + 1;
 
-        $task = $room->tasks()->create([
+        $task = $room->tasks()->create(array_merge([
             'title' => $title,
             'due_at' => $dueAt,
             'created_by' => Owners::resolveId($createdBy),
             'position' => $position,
-        ]);
+            'status' => ClientRoomTask::STATUS_ASSIGNED,
+            'published_status' => ClientRoomTask::PUBLISHED_PUBLISHED,
+        ], $this->taskFields($attributes)));
 
         $room->touchActivity();
 
         return $task;
     }
 
+    /**
+     * Change what a task says. Only the fields handed over are touched, and
+     * the tick is not one of them — that stays with `completeTask()` and
+     * `reopenTask()`, so `done_at` is never set by a form field that happens
+     * to read `completed`.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function updateTask(ClientRoomTask|int $task, array $attributes): ClientRoomTask
+    {
+        $task = $this->task($task);
+
+        if (array_key_exists('title', $attributes)) {
+            $title = trim((string) $attributes['title']);
+
+            if ($title === '') {
+                throw new InvalidArgumentException('statamic-clientrooms: a task needs a title.');
+            }
+
+            $task->title = $title;
+        }
+
+        if (array_key_exists('due_at', $attributes)) {
+            $task->due_at = $attributes['due_at'];
+        }
+
+        $task->fill($this->taskFields($attributes));
+
+        if ($task->isDirty()) {
+            $task->save();
+            $this->roomOf($task)->touchActivity();
+        }
+
+        return $task;
+    }
+
+    /** Show a task to the client, or take it back to the desk. */
+    public function publishTask(ClientRoomTask|int $task, bool $published = true): ClientRoomTask
+    {
+        return $this->updateTask($task, [
+            'published_status' => $published
+                ? ClientRoomTask::PUBLISHED_PUBLISHED
+                : ClientRoomTask::PUBLISHED_DRAFT,
+        ]);
+    }
+
     /** Tick a task. A task already done stays done and fires nothing. */
     public function completeTask(ClientRoomTask|int $task, ?string $doneBy = null): ClientRoomTask
     {
-        $task = $task instanceof ClientRoomTask ? $task : ClientRoomTask::query()->findOrFail($task);
+        $task = $this->task($task);
 
         if ($task->isDone()) {
             return $task;
@@ -192,9 +254,10 @@ class ClientRoomsManager
         $task->forceFill([
             'done_at' => now(),
             'done_by' => Owners::resolveId($doneBy),
+            'status' => ClientRoomTask::STATUS_COMPLETED,
         ])->save();
 
-        $room = $task->room()->withoutGlobalScopes()->firstOrFail();
+        $room = $this->roomOf($task);
         $room->touchActivity();
 
         ClientRoomTaskCompleted::dispatch($room, $task);
@@ -204,15 +267,72 @@ class ClientRoomsManager
 
     public function reopenTask(ClientRoomTask|int $task): ClientRoomTask
     {
-        $task = $task instanceof ClientRoomTask ? $task : ClientRoomTask::query()->findOrFail($task);
+        $task = $this->task($task);
 
         if (! $task->isDone()) {
             return $task;
         }
 
-        $task->forceFill(['done_at' => null, 'done_by' => null])->save();
+        // Back to `assigned`, whatever it said before. Ticking overwrote the
+        // old word with `completed`; there is nothing left to restore, and
+        // guessing one would be worse than the plain answer "open again". A
+        // task that was called off and is now open again gets called off again.
+        $task->forceFill([
+            'done_at' => null,
+            'done_by' => null,
+            'status' => ClientRoomTask::STATUS_ASSIGNED,
+        ])->save();
 
         return $task;
+    }
+
+    /**
+     * The writable task fields, picked out of an array that may hold anything.
+     * A key that is absent is left alone; a key that is there is written, an
+     * empty string and null landing as null.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    protected function taskFields(array $attributes): array
+    {
+        $fields = [];
+
+        foreach (['description', 'type', 'status', 'published_status', 'priority'] as $key) {
+            if (! array_key_exists($key, $attributes)) {
+                continue;
+            }
+
+            $value = $attributes[$key];
+            $value = is_string($value) ? trim($value) : $value;
+
+            $fields[$key] = ($value === null || $value === '') ? null : (string) $value;
+        }
+
+        // Not nullable in the database, so an explicit null here means "back to
+        // the safe side" rather than a write that blows up at the driver.
+        if (array_key_exists('published_status', $fields) && $fields['published_status'] === null) {
+            $fields['published_status'] = ClientRoomTask::PUBLISHED_DRAFT;
+        }
+
+        if (array_key_exists('estimated_minutes', $attributes)) {
+            $minutes = $attributes['estimated_minutes'];
+
+            $fields['estimated_minutes'] = ($minutes === null || $minutes === '') ? null : max(0, (int) $minutes);
+        }
+
+        return $fields;
+    }
+
+    protected function task(ClientRoomTask|int $task): ClientRoomTask
+    {
+        return $task instanceof ClientRoomTask ? $task : ClientRoomTask::query()->findOrFail($task);
+    }
+
+    /** The room a task hangs in, brand scope aside — a task is never orphaned. */
+    protected function roomOf(ClientRoomTask $task): ClientRoom
+    {
+        return $task->room()->withoutGlobalScopes()->firstOrFail();
     }
 
     public function attach(ClientRoom|int $room, UploadedFile $file, ?string $title = null, bool $visibleToClient = true, ?string $uploadedBy = null): ClientRoomFile
