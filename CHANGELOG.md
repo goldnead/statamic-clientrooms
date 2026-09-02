@@ -29,6 +29,18 @@ A task can now carry the work, and the coach decides when the client sees it.
   fixture — stays invisible until somebody has an opinion about it. `addTask()` publishes, because
   somebody named a client, typed a title and meant it to arrive.
 - Ticking a task now also sets `status` to `completed`, and unticking sets it to `assigned`.
+- `up()` is safe to re-run: each of its three steps asks whether it is still needed, so a deploy
+  killed halfway through can simply be run again. The backfill runs only in the same breath that
+  creates the columns, never over drafts that already exist.
+- **`down()` throws the drafts away.** The column goes, and with it the knowledge of which tasks
+  were unfinished. A later `up()` — a rollback and re-deploy, `migrate:refresh` — finds no column
+  and stamps every task `published`, which puts the drafts in front of the client. Roll this
+  migration back only on an install whose drafts you are willing to publish, or export
+  `published_status` first.
+- The Control Panel accepts `assigned`, `in-progress` and `cancelled` for `status`. `completed` and
+  `overdue` are derived — from the tick and from the calendar — and are refused there, because a
+  typed `completed` would show the client "done" on a task nobody ticked. The facade still takes all
+  five, for imports; an import that carries `completed` must carry its `done_at` too.
 
 ## 0.1.0 — 2026-09-02
 

@@ -104,7 +104,18 @@ class TasksController extends CpController
         return [
             'description' => ['sometimes', 'nullable', 'string', 'max:65535'],
             'type' => ['sometimes', 'nullable', 'string', Rule::in($this->taskTypes())],
-            'status' => ['sometimes', 'nullable', 'string', Rule::in(ClientRoomTask::STATUSES)],
+            // Not the full vocabulary. `completed` here would set the state
+            // without setting `done_at`, and the client would read "done" on a
+            // task nobody ticked and then not do it. `overdue` comes from the
+            // calendar. Both are derived, never typed. The facade still takes
+            // all five, because an import carries states this form cannot make
+            // — and an import that carries `completed` must carry `done_at`
+            // with it.
+            'status' => ['sometimes', 'nullable', 'string', Rule::in([
+                ClientRoomTask::STATUS_ASSIGNED,
+                ClientRoomTask::STATUS_IN_PROGRESS,
+                ClientRoomTask::STATUS_CANCELLED,
+            ])],
             'published_status' => ['sometimes', 'string', Rule::in(ClientRoomTask::PUBLISHED_STATUSES)],
             'priority' => ['sometimes', 'nullable', 'string', Rule::in(ClientRoomTask::PRIORITIES)],
             'estimated_minutes' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100000'],

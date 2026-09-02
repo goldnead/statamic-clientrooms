@@ -378,7 +378,7 @@ function saveNotes() {
                             <li v-for="task in tasks" :key="task.id" class="py-2">
                                 <!-- Editing: the row becomes the form, in place. -->
                                 <div v-if="editingId === task.id" class="space-y-3">
-                                    <Field :label="t.task_title_placeholder" :error="editErrors.title">
+                                    <Field :label="t.task_title" :error="editErrors.title">
                                         <Input v-model="editTask.title" />
                                     </Field>
                                     <Field :label="t.task_description" :error="editErrors.description">

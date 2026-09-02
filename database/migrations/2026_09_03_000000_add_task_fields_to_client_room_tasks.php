@@ -23,36 +23,74 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** Laravel's own name for the index below, spelled out so it can be looked for. */
+    private const INDEX = 'client_room_tasks_room_id_published_status_index';
+
+    /**
+     * Each of the three steps asks whether it is still needed, because
+     * `ALTER TABLE` commits itself on MySQL: a deploy killed after the columns
+     * land leaves them standing while Laravel still calls this migration
+     * unrun. Without the checks the retry dies on "duplicate column".
+     *
+     * The backfill in particular runs **only** in the same breath that creates
+     * the columns. Re-running it later would stamp `published` over drafts the
+     * coach has since written, and put them in front of a client.
+     */
     public function up(): void
     {
-        Schema::table('client_room_tasks', function (Blueprint $table) {
-            $table->text('description')->nullable()->after('title');
+        $fresh = ! Schema::hasColumn('client_room_tasks', 'published_status');
 
-            // exercise, homework, practice … free-form, see config `task_types`.
-            $table->string('type', 40)->nullable()->after('description');
+        if ($fresh) {
+            Schema::table('client_room_tasks', function (Blueprint $table) {
+                $table->text('description')->nullable()->after('title');
 
-            // assigned|in-progress|completed|overdue|cancelled. `done_at` stays
-            // the truth for done-ness; this is the workflow state around it.
-            $table->string('status', 20)->nullable()->after('type');
+                // exercise, homework, practice … free-form, see config `task_types`.
+                $table->string('type', 40)->nullable()->after('description');
 
-            $table->string('published_status', 20)->default('draft')->after('status');
-            $table->string('priority', 20)->nullable()->after('published_status');
-            $table->unsignedInteger('estimated_minutes')->nullable()->after('priority');
-        });
+                // assigned|in-progress|completed|overdue|cancelled. `done_at` stays
+                // the truth for done-ness; this is the workflow state around it.
+                $table->string('status', 20)->nullable()->after('type');
 
-        // Everything that already existed was visible to the client. Keep it so.
-        DB::table('client_room_tasks')->update(['published_status' => 'published']);
+                $table->string('published_status', 20)->default('draft')->after('status');
+                $table->string('priority', 20)->nullable()->after('published_status');
+                $table->unsignedInteger('estimated_minutes')->nullable()->after('priority');
+            });
 
-        Schema::table('client_room_tasks', function (Blueprint $table) {
-            $table->index(['room_id', 'published_status']);
-        });
+            // Everything that already existed was visible to the client. Keep it so.
+            DB::table('client_room_tasks')->update(['published_status' => 'published']);
+        }
+
+        if (! $this->hasIndex()) {
+            Schema::table('client_room_tasks', function (Blueprint $table) {
+                $table->index(['room_id', 'published_status'], self::INDEX);
+            });
+        }
+    }
+
+    private function hasIndex(): bool
+    {
+        foreach (Schema::getIndexes('client_room_tasks') as $index) {
+            if (($index['name'] ?? null) === self::INDEX) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function down(): void
     {
-        Schema::table('client_room_tasks', function (Blueprint $table) {
-            $table->dropIndex(['room_id', 'published_status']);
-        });
+        // The index exists only where the column does, so one check covers
+        // both — including the half-applied state the guard in `up()` describes.
+        if (! Schema::hasColumn('client_room_tasks', 'published_status')) {
+            return;
+        }
+
+        if ($this->hasIndex()) {
+            Schema::table('client_room_tasks', function (Blueprint $table) {
+                $table->dropIndex(self::INDEX);
+            });
+        }
 
         Schema::table('client_room_tasks', function (Blueprint $table) {
             $table->dropColumn([

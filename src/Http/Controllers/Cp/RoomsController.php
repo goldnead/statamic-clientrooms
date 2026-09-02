@@ -160,7 +160,13 @@ class RoomsController extends CpController
     protected function json(Request $request)
     {
         $query = ClientRoom::query()
-            ->withCount(['tasks as open_tasks_count' => fn (Builder $q) => $q->whereNull('done_at')]);
+            // Open means the client owes it: published and not ticked. A draft
+            // is not work anybody has been given yet, and counting it here
+            // would put a number on the listing that the room itself, which
+            // counts drafts separately, then contradicts.
+            ->withCount(['tasks as open_tasks_count' => fn (Builder $q) => $q
+                ->whereNull('done_at')
+                ->where('published_status', ClientRoomTask::PUBLISHED_PUBLISHED)]);
 
         if ($search = trim((string) $request->get('search', ''))) {
             $query->where(function (Builder $q) use ($search): void {
@@ -262,7 +268,10 @@ class RoomsController extends CpController
     /**
      * The task vocabularies, as the dropdowns want them.
      *
-     * @return array{types: list<array{value: string, label: string}>, statuses: list<array{value: string, label: string}>, priorities: list<array{value: string, label: string}>, published: list<array{value: string, label: string}>}
+     * No list for `published_status`: the screen offers a switch, not three
+     * words, so a list of them would be payload nobody reads.
+     *
+     * @return array{types: list<array{value: string, label: string}>, statuses: list<array{value: string, label: string}>, priorities: list<array{value: string, label: string}>}
      */
     protected function taskOptions(): array
     {
@@ -290,11 +299,6 @@ class RoomsController extends CpController
                 'value' => $priority,
                 'label' => $this->taskPriorityLabel($priority),
             ], ClientRoomTask::PRIORITIES),
-
-            'published' => array_map(fn (string $published): array => [
-                'value' => $published,
-                'label' => $this->message('task_published_'.$published, $published),
-            ], ClientRoomTask::PUBLISHED_STATUSES),
         ];
     }
 
@@ -393,7 +397,7 @@ class RoomsController extends CpController
             'panel_timeline', 'timeline_sources', 'timeline_empty', 'timeline_failed', 'timeline_more', 'timeline_mode_fallback',
             'stat_first_contact', 'stat_last_contact', 'stat_purchases',
             'panel_tasks', 'tasks_empty', 'task_title_placeholder', 'task_due', 'task_add', 'task_done', 'task_reopen', 'task_overdue', 'task_delete_title', 'task_delete_body', 'tasks_open_count',
-            'task_description', 'task_description_placeholder', 'task_type', 'task_type_none', 'task_status', 'task_priority', 'task_priority_none', 'task_minutes', 'task_minutes_unit',
+            'task_title', 'task_description', 'task_description_placeholder', 'task_type', 'task_type_none', 'task_status', 'task_priority', 'task_priority_none', 'task_minutes', 'task_minutes_unit',
             'task_visible', 'task_visible_help', 'task_draft', 'task_archived', 'task_more', 'task_less', 'task_edit', 'task_publish', 'task_unpublish', 'tasks_draft_count',
             'panel_files', 'files_empty', 'file_title_placeholder', 'file_choose', 'file_upload', 'file_visible', 'file_hidden', 'file_missing', 'file_download', 'file_delete_title', 'file_delete_body', 'file_uploaded_by',
             'panel_notes', 'notes_internal', 'notes_internal_help', 'notes_client', 'notes_client_help', 'notes_save',

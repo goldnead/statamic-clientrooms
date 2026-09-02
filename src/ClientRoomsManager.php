@@ -29,6 +29,9 @@ use Statamic\Contracts\Auth\User as UserContract;
  */
 class ClientRoomsManager
 {
+    /** The ceiling of the `unsignedInteger` column behind `estimated_minutes`. */
+    public const MAX_ESTIMATED_MINUTES = 4294967295;
+
     public function __construct(
         protected RoomFiles $files,
         protected RoomTimeline $timeline,
@@ -304,9 +307,23 @@ class ClientRoomsManager
             }
 
             $value = $attributes[$key];
-            $value = is_string($value) ? trim($value) : $value;
 
-            $fields[$key] = ($value === null || $value === '') ? null : (string) $value;
+            // An import may hand over a whole raw row, and a raw row carries
+            // arrays and objects. Those become null rather than a fatal cast:
+            // a field the addon cannot read is a field it does not have, not a
+            // reason to lose the task.
+            if (! is_scalar($value)) {
+                $fields[$key] = null;
+
+                continue;
+            }
+
+            $value = is_string($value) ? trim($value) : $value;
+            $value = (string) $value;
+
+            // Cast first, then judge: `false` casts to the empty string and is
+            // an absent field, not the two characters "false".
+            $fields[$key] = ($value === '') ? null : $value;
         }
 
         // Not nullable in the database, so an explicit null here means "back to
@@ -318,7 +335,13 @@ class ClientRoomsManager
         if (array_key_exists('estimated_minutes', $attributes)) {
             $minutes = $attributes['estimated_minutes'];
 
-            $fields['estimated_minutes'] = ($minutes === null || $minutes === '') ? null : max(0, (int) $minutes);
+            // Clamped at both ends. The column is an unsigned int; a value
+            // above its ceiling would otherwise travel all the way to the
+            // driver and come back as a SQL error instead of a number nobody
+            // meant.
+            $fields['estimated_minutes'] = (! is_numeric($minutes))
+                ? null
+                : min(self::MAX_ESTIMATED_MINUTES, max(0, (int) $minutes));
         }
 
         return $fields;

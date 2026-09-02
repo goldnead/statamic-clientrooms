@@ -81,7 +81,27 @@ class ClientRoomTask extends Model
     /** @var list<string> */
     public const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
-    protected $guarded = [];
+    /**
+     * Named rather than `$guarded = []`, so that the whitelist in
+     * `ClientRoomsManager::taskFields()` is not the only thing standing between
+     * a request and a column. `room_id` is set by the relation, never by an
+     * array; `done_at` and `done_by` are written with `forceFill()` where the
+     * tick happens, and belong to nobody else.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'title',
+        'description',
+        'type',
+        'status',
+        'published_status',
+        'priority',
+        'estimated_minutes',
+        'due_at',
+        'created_by',
+        'position',
+    ];
 
     protected function casts(): array
     {

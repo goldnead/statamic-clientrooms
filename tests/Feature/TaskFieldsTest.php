@@ -2,6 +2,7 @@
 
 namespace Goldnead\ClientRooms\Tests\Feature;
 
+use Goldnead\ClientRooms\ClientRoomsManager;
 use Goldnead\ClientRooms\Facades\ClientRooms;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Tests\TestCase;
@@ -138,10 +139,18 @@ class TaskFieldsTest extends TestCase
 
         $room = $this->room();
 
+        $added = ['description', 'type', 'status', 'published_status', 'priority', 'estimated_minutes'];
+        $existing = ['id', 'room_id', 'title', 'due_at', 'done_at', 'done_by', 'created_by', 'position'];
+
         $migration->down();
 
-        $this->assertFalse(Schema::hasColumn('client_room_tasks', 'published_status'));
-        $this->assertTrue(Schema::hasColumn('client_room_tasks', 'title'), 'down() took more than its own six columns.');
+        foreach ($added as $column) {
+            $this->assertFalse(Schema::hasColumn('client_room_tasks', $column), "down() left `$column` behind.");
+        }
+
+        foreach ($existing as $column) {
+            $this->assertTrue(Schema::hasColumn('client_room_tasks', $column), "down() took `$column`, which is not its own.");
+        }
 
         // A room that ran 0.1.0: every task there was visible, because nothing
         // yet existed that could hide one.
@@ -155,11 +164,92 @@ class TaskFieldsTest extends TestCase
 
         $migration->up();
 
+        foreach ($added as $column) {
+            $this->assertTrue(Schema::hasColumn('client_room_tasks', $column), "up() did not bring `$column` back.");
+        }
+
         $this->assertSame('published', DB::table('client_room_tasks')->value('published_status'));
 
         $this->actAsClient();
 
         $this->assertSame('[Aus der alten Fassung]', $this->parse($this->tasks));
+
+        // Twice in a row, because `ALTER TABLE` commits itself on MySQL: a
+        // deploy killed mid-migration leaves the columns and reruns this.
+        $migration->up();
+
+        $this->assertTrue(Schema::hasColumn('client_room_tasks', 'published_status'));
+    }
+
+    #[Test]
+    public function the_control_panel_cannot_say_done_without_ticking(): void
+    {
+        $room = $this->room();
+        $user = $this->superUser();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+
+        // `completed` and `overdue` are derived, never typed. Letting them
+        // through here would show the client "done" on a task nobody ticked —
+        // and they would stop doing it.
+        foreach (['completed', 'overdue'] as $status) {
+            $this->actingAs($user)
+                ->patchJson('/cp/client-rooms/'.$room->id.'/tasks/'.$task->id, ['status' => $status])
+                ->assertStatus(422);
+        }
+
+        $task->refresh();
+
+        $this->assertSame('assigned', $task->status);
+        $this->assertFalse($task->isDone());
+    }
+
+    #[Test]
+    public function an_import_may_hand_over_a_raw_row_without_bringing_the_addon_down(): void
+    {
+        $room = $this->room();
+
+        // What a CSV or an API row actually looks like when nobody cleaned it:
+        // arrays, objects, booleans, a number far past the column's ceiling.
+        $task = ClientRooms::addTask($room, 'Aus einem Import', null, null, [
+            'description' => ['zeile eins', 'zeile zwei'],
+            'type' => new \stdClass,
+            'priority' => false,
+            'status' => 0,
+            'estimated_minutes' => '9999999999999',
+        ]);
+
+        $this->assertNull($task->description);
+        $this->assertNull($task->type);
+        $this->assertNull($task->priority);
+        $this->assertSame('0', $task->status);
+        $this->assertSame(ClientRoomsManager::MAX_ESTIMATED_MINUTES, $task->estimated_minutes);
+    }
+
+    #[Test]
+    public function the_model_does_not_let_an_array_reach_the_columns_that_are_not_its_business(): void
+    {
+        $room = $this->room();
+        $other = $this->room(['email' => 'jonas@example.com']);
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+
+        ClientRooms::completeTask($task);
+        $doneAt = $task->refresh()->done_at;
+
+        // Mass assignment straight at the model, the way a future import that
+        // skips the manager would do it.
+        $task->fill([
+            'title' => 'Neu',
+            'room_id' => $other->id,
+            'done_at' => null,
+            'done_by' => 'jemand-anderes',
+        ])->save();
+
+        $task->refresh();
+
+        $this->assertSame('Neu', $task->title);
+        $this->assertSame($room->id, $task->room_id);
+        $this->assertEquals($doneAt, $task->done_at);
+        $this->assertNotSame('jemand-anderes', $task->done_by);
     }
 
     // ── The fields themselves ───────────────────────────────────────────────
@@ -369,6 +459,8 @@ class TaskFieldsTest extends TestCase
 
         foreach ([
             ['title' => 'x', 'status' => 'in_progress'],   // underscore, not the wire value
+            ['title' => 'x', 'status' => 'completed'],     // derived from the tick, never typed
+            ['title' => 'x', 'status' => 'overdue'],       // derived from the calendar
             ['title' => 'x', 'published_status' => 'live'],
             ['title' => 'x', 'priority' => 'sofort'],
             ['title' => 'x', 'type' => 'was-auch-immer'],

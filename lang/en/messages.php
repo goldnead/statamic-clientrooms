@@ -98,6 +98,7 @@ return [
     'task_overdue' => 'Overdue',
     'task_delete_title' => 'Remove this task?',
     'task_delete_body' => 'The task is deleted. This cannot be undone.',
+    'task_title' => 'Task',
     'task_description' => 'Description',
     'task_description_placeholder' => 'What exactly is this about?',
     'task_type' => 'Kind',
@@ -136,10 +137,6 @@ return [
     'task_priority_medium' => 'Medium',
     'task_priority_high' => 'High',
     'task_priority_urgent' => 'Urgent',
-
-    'task_published_draft' => 'Draft',
-    'task_published_published' => 'Visible',
-    'task_published_archived' => 'Archived',
 
     // Files
     'panel_files' => 'Documents',

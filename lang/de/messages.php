@@ -98,6 +98,7 @@ return [
     'task_overdue' => 'Überfällig',
     'task_delete_title' => 'Diese Aufgabe entfernen?',
     'task_delete_body' => 'Die Aufgabe wird gelöscht. Das lässt sich nicht rückgängig machen.',
+    'task_title' => 'Aufgabe',
     'task_description' => 'Beschreibung',
     'task_description_placeholder' => 'Worum geht es genau?',
     'task_type' => 'Art',
@@ -136,10 +137,6 @@ return [
     'task_priority_medium' => 'Mittel',
     'task_priority_high' => 'Hoch',
     'task_priority_urgent' => 'Dringend',
-
-    'task_published_draft' => 'Entwurf',
-    'task_published_published' => 'Sichtbar',
-    'task_published_archived' => 'Abgelegt',
 
     // Unterlagen
     'panel_files' => 'Unterlagen',
