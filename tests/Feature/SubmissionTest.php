@@ -5,12 +5,15 @@ namespace Goldnead\ClientRooms\Tests\Feature;
 use Goldnead\ClientRooms\Events\ClientRoomTaskSubmitted;
 use Goldnead\ClientRooms\Facades\ClientRooms;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
+use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Goldnead\ClientRooms\Tests\TestCase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Statamic\Facades\Antlers;
+use Statamic\Facades\Asset;
 
 /**
  * What the client hands back, and who may read it afterwards.
@@ -305,27 +308,191 @@ class SubmissionTest extends TestCase
         $submission = ClientRooms::submitTask($task, 'Text', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
         $file = $submission->files[0];
 
-        $this->assertNotNull($file->asset());
+        // Held before the delete. Asking the row afterwards is no test at all:
+        // the row is gone, `fresh()` is null, and a null-safe call on it
+        // reports success whatever is still lying in the container.
+        $id = $file->container.'::'.$file->path;
 
-        ClientRooms::removeSubmission($submission);
+        $this->assertNotNull(Asset::find($id));
+
+        $this->assertTrue(ClientRooms::removeSubmission($submission));
 
         $this->assertSame(0, $task->submissions()->count());
         $this->assertSame(0, $file->newQuery()->count());
-        // Not just the row: the asset would otherwise sit in the container
-        // forever with nothing pointing at it.
-        $this->assertNull($file->fresh()?->asset());
+        $this->assertNull(Asset::find($id), 'The recording is still in the container.');
     }
 
     #[Test]
-    public function deleting_a_task_takes_its_submissions_with_it(): void
+    public function deleting_a_task_takes_its_submissions_and_their_files(): void
     {
+        $this->makeContainer();
+
         $room = $this->room();
         $task = ClientRooms::addTask($room, 'Aufgabe');
-        ClientRooms::submitTask($task, 'Abgabe');
+        $submission = ClientRooms::submitTask($task, 'Abgabe', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+        $id = $submission->files[0]->container.'::'.$submission->files[0]->path;
+
+        $this->assertNotNull(Asset::find($id));
 
         $task->delete();
 
         $this->assertSame(0, ClientRoomTaskSubmission::query()->count());
+        // The database cascade would have taken the rows and left this behind.
+        $this->assertNull(Asset::find($id), 'The recording outlived the task it belonged to.');
+    }
+
+    #[Test]
+    public function deleting_a_room_takes_the_documents_and_the_recordings_with_it(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        $submission = ClientRooms::submitTask($task, null, [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+        $document = ClientRooms::attach($room, UploadedFile::fake()->create('plan.pdf', 4), 'Plan');
+
+        $recording = $submission->files[0]->container.'::'.$submission->files[0]->path;
+        $shared = $document->container.'::'.$document->path;
+
+        $room->delete();
+
+        // Four tables cascade in SQL, and SQL knows nothing about a container.
+        $this->assertNull(Asset::find($recording), 'A client recording outlived its room.');
+        $this->assertNull(Asset::find($shared), 'A shared document outlived its room.');
+        $this->assertSame(0, ClientRoomTaskSubmission::query()->count());
+    }
+
+    #[Test]
+    public function a_refused_second_file_leaves_nothing_behind(): void
+    {
+        $this->makeContainer();
+
+        config()->set('statamic-clientrooms.allowed_extensions', ['mp3']);
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+
+        try {
+            ClientRooms::submitTask($task, 'Zwei Dateien', [
+                UploadedFile::fake()->create('erste.mp3', 6),
+                UploadedFile::fake()->create('zweite.exe', 6),
+            ]);
+
+            $this->fail('The refused extension should have stopped the submission.');
+        } catch (\InvalidArgumentException) {
+            // expected
+        }
+
+        // The first file was already on disk when the second was refused. A
+        // transaction could not have taken it back; the undo has to.
+        $this->assertSame(0, $task->submissions()->count());
+        $this->assertSame(0, ClientRoomTaskSubmissionFile::query()->count());
+        $this->assertSame(
+            [],
+            Storage::disk('clientrooms_test')->allFiles('room-'.$room->id.'/submissions'),
+            'The first recording stayed in the container after the submission was undone.'
+        );
+    }
+
+    // ── The Control Panel side ──────────────────────────────────────────────
+
+    #[Test]
+    public function staff_download_a_submission_file_through_the_control_panel(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        $submission = ClientRooms::submitTask($task, null, [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+        $file = $submission->files[0];
+
+        // No signed link and no expiry: a screen left open for an hour still
+        // works, because the permission is the credential here.
+        $this->actingAs($this->userWithPermission('view client rooms'))
+            ->get('/cp/client-rooms/'.$room->id.'/submissions/files/'.$file->id.'/download')
+            ->assertOk();
+    }
+
+    #[Test]
+    public function a_submission_file_of_another_room_is_not_reachable_through_this_one(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $other = $this->room(['email' => 'jonas@example.com']);
+        $task = ClientRooms::addTask($other, 'Fremd');
+        $submission = ClientRooms::submitTask($task, null, [UploadedFile::fake()->create('fremd.mp3', 6)]);
+
+        $user = $this->superUser();
+
+        $this->actingAs($user)
+            ->get('/cp/client-rooms/'.$room->id.'/submissions/files/'.$submission->files[0]->id.'/download')
+            ->assertNotFound();
+
+        $this->actingAs($user)
+            ->deleteJson('/cp/client-rooms/'.$room->id.'/submissions/'.$submission->id)
+            ->assertNotFound();
+
+        $this->assertSame(1, $task->submissions()->count());
+    }
+
+    #[Test]
+    public function a_reader_may_look_at_a_submission_and_not_remove_it(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        $submission = ClientRooms::submitTask($task, 'Abgabe', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+
+        $reader = $this->userWithPermission('view client rooms');
+
+        $this->actingAs($reader)
+            ->get('/cp/client-rooms/'.$room->id.'/submissions/files/'.$submission->files[0]->id.'/download')
+            ->assertOk();
+
+        $this->actingAs($reader)
+            ->deleteJson('/cp/client-rooms/'.$room->id.'/submissions/'.$submission->id)
+            ->assertForbidden();
+
+        $this->assertSame(1, $task->submissions()->count());
+    }
+
+    #[Test]
+    public function the_control_panel_removes_a_submission_and_its_recording(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        $submission = ClientRooms::submitTask($task, 'Abgabe', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+        $id = $submission->files[0]->container.'::'.$submission->files[0]->path;
+
+        $this->actingAs($this->userWithPermission('view client rooms', 'edit client rooms'))
+            ->delete('/cp/client-rooms/'.$room->id.'/submissions/'.$submission->id)
+            ->assertRedirect();
+
+        $this->assertSame(0, $task->submissions()->count());
+        $this->assertNull(Asset::find($id), 'The recording survived the delete the screen reported as done.');
+    }
+
+    #[Test]
+    public function the_submission_screen_shows_what_came_back(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        ClientRooms::submitTask($task, 'Hier ist sie.', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+
+        $this->actingAs($this->superUser())->get('/cp/client-rooms/'.$room->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('tasks.0.submissions', 1)
+                ->where('tasks.0.submissions.0.body', 'Hier ist sie.')
+                ->has('tasks.0.submissions.0.files', 1)
+                ->where('tasks.0.submissions.0.files.0.filename', 'aufnahme.mp3')
+                ->where('tasks.0.submissions.0.files.0.missing', false));
     }
 
     // ── The way back ────────────────────────────────────────────────────────

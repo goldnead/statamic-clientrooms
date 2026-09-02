@@ -3,6 +3,7 @@
 namespace Goldnead\ClientRooms\Models;
 
 use Goldnead\ClientRooms\Models\Concerns\BelongsToBrand;
+use Goldnead\ClientRooms\Support\Files\RoomFiles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -53,6 +54,35 @@ class ClientRoom extends Model
             'last_activity_at' => 'datetime',
             'meta' => 'array',
         ];
+    }
+
+    /**
+     * A room taken away takes its files off the disk, not just out of the
+     * tables.
+     *
+     * The foreign keys cascade `client_rooms → client_room_tasks →
+     * submissions → submission files` entirely in SQL, and SQL knows nothing
+     * about the asset container. Left to the cascade, deleting one room
+     * strands every document and every client recording it ever held. Each
+     * task is deleted through Eloquent here so that its own hook runs.
+     *
+     * The addon offers no way to delete a room — rooms are closed, and closing
+     * keeps everything. This is for the host who calls `delete()` anyway.
+     * Model events do not fire on a mass delete (`query()->delete()`).
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (self $room): void {
+            foreach ($room->tasks()->get() as $task) {
+                $task->delete();
+            }
+
+            $files = app(RoomFiles::class);
+
+            foreach ($room->files()->get() as $file) {
+                $files->remove($file);
+            }
+        });
     }
 
     /** @return HasMany<ClientRoomTask, $this> */

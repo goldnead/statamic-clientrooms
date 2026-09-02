@@ -7,9 +7,6 @@ use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\URL;
-use InvalidArgumentException;
-use RuntimeException;
-use Statamic\Assets\Asset as StatamicAsset;
 use Statamic\Facades\Asset;
 
 /**
@@ -44,65 +41,62 @@ class SubmissionFiles
      */
     public function attach(ClientRoom $room, ClientRoomTaskSubmission $submission, UploadedFile $file): ClientRoomTaskSubmissionFile
     {
-        if (! $this->rooms->isAllowed($file)) {
-            throw new InvalidArgumentException(__('statamic-clientrooms::messages.file_type_refused', [
-                'extensions' => implode(', ', $this->rooms->allowedExtensions()),
-            ]));
-        }
-
-        $brandId = (int) $room->brand_id;
-
-        $this->rooms->ensureContainer($brandId);
-        $container = $this->rooms->container($brandId);
-
-        if ($container === null) {
-            throw new RuntimeException(sprintf(
-                'statamic-clientrooms: the asset container [%s] could not be created. Run `php please clientrooms:install`.',
-                $this->rooms->containerHandle($brandId),
-            ));
-        }
-
-        $asset = Asset::make();
-
-        if (! $asset instanceof StatamicAsset) {
-            throw new RuntimeException('statamic-clientrooms: the asset repository handed back something that is not an asset.');
-        }
-
         // Read before the upload: afterwards the file has been moved out from
         // under the `UploadedFile`, and asking the fresh asset gives 0 on a
         // disk that has not caught up. The size is recorded, not derived.
         $size = (int) $file->getSize();
 
-        $asset->container($container);
-        $asset->path($this->folderFor($room, $submission).'/'.$file->getClientOriginalName());
-
-        // `upload()` writes, deduplicates the name and saves; the path
-        // afterwards is the one that exists. Checked on disk rather than by
-        // return value, because an `AssetCreating` listener may cancel it and
-        // then there is nothing to record.
-        $asset->upload($file);
-
-        if (! $asset->exists()) {
-            throw new RuntimeException('statamic-clientrooms: the upload was refused by an AssetCreating listener.');
-        }
+        $asset = $this->rooms->storeInto($room, $file, $this->folderFor($room, $submission));
 
         return $submission->files()->create([
-            'container' => $container->handle(),
+            'container' => $asset->container()->handle(),
             'path' => $asset->path(),
             'size' => $size,
         ]);
     }
 
-    /** Remove the row and the asset behind it. */
-    public function remove(ClientRoomTaskSubmissionFile $file): void
+    /**
+     * Remove the row and the asset behind it.
+     *
+     * Says whether the file is really gone. An asset that refuses to delete
+     * leaves a client's recording in the container, and a screen reporting
+     * success over that is lying about where the recording is.
+     */
+    public function remove(ClientRoomTaskSubmissionFile $file): bool
     {
         $asset = $file->asset();
 
         if ($asset !== null) {
             $asset->delete();
+
+            // Asked, not assumed. `delete()` hands back the asset rather than
+            // a verdict, and an `AssetDeleting` listener may have cancelled
+            // it. The container is the only authority on whether the file is
+            // gone, so the container is what gets asked.
+            if ($file->asset() !== null) {
+                return false;
+            }
         }
 
-        $file->delete();
+        return $file->delete() !== false;
+    }
+
+    /**
+     * Everything hanging off one submission, files first.
+     *
+     * The database would cascade the rows on its own and leave the assets in
+     * the container with nothing pointing at them — a client's own recording,
+     * kept after the reason to keep it is gone.
+     */
+    public function removeFor(ClientRoomTaskSubmission $submission): bool
+    {
+        $clean = true;
+
+        foreach ($submission->files as $file) {
+            $clean = $this->remove($file) && $clean;
+        }
+
+        return $submission->delete() !== false && $clean;
     }
 
     /**

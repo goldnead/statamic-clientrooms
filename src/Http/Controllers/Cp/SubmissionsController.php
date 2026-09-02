@@ -52,7 +52,12 @@ class SubmissionsController extends CpController
 
         $room = $this->findRoom($room);
 
-        $this->rooms->removeSubmission($this->submission($room->id, $submission));
+        // Asked, not assumed: an asset that refuses to go leaves a client's
+        // recording in the container, and a green toast over that is a lie
+        // about where the recording is.
+        if (! $this->rooms->removeSubmission($this->submission($room->id, $submission))) {
+            return back()->withErrors(['submission' => __('statamic-clientrooms::messages.submission_delete_failed')]);
+        }
 
         $room->touchActivity();
 

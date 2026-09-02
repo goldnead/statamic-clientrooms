@@ -2,7 +2,7 @@
 
 namespace Goldnead\ClientRooms\Models;
 
-use Goldnead\ClientRooms\ClientRoomsManager;
+use Goldnead\ClientRooms\Support\Files\SubmissionFiles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -120,10 +120,10 @@ class ClientRoomTask extends Model
     protected static function booted(): void
     {
         static::deleting(function (self $task): void {
-            $rooms = app(ClientRoomsManager::class);
+            $files = app(SubmissionFiles::class);
 
             foreach ($task->submissions()->with('files')->get() as $submission) {
-                $rooms->removeSubmission($submission);
+                $files->removeFor($submission);
             }
         });
     }

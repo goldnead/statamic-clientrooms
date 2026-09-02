@@ -417,7 +417,7 @@ class RoomsController extends CpController
             'panel_tasks', 'tasks_empty', 'task_title_placeholder', 'task_due', 'task_add', 'task_done', 'task_reopen', 'task_overdue', 'task_delete_title', 'task_delete_body', 'tasks_open_count',
             'task_title', 'task_description', 'task_description_placeholder', 'task_type', 'task_type_none', 'task_status', 'task_priority', 'task_priority_none', 'task_minutes', 'task_minutes_unit',
             'task_visible', 'task_visible_help', 'task_draft', 'task_archived',
-            'panel_submissions', 'submission_none', 'submission_count', 'submission_handed_in', 'submission_delete_title', 'submission_delete_body', 'submission_file_missing', 'task_more', 'task_less', 'task_edit', 'task_publish', 'task_unpublish', 'tasks_draft_count',
+            'submission_handed_in', 'submission_delete_title', 'submission_delete_body', 'submission_file_missing', 'task_more', 'task_less', 'task_edit', 'task_publish', 'task_unpublish', 'tasks_draft_count',
             'panel_files', 'files_empty', 'file_title_placeholder', 'file_choose', 'file_upload', 'file_visible', 'file_hidden', 'file_missing', 'file_download', 'file_delete_title', 'file_delete_body', 'file_uploaded_by',
             'panel_notes', 'notes_internal', 'notes_internal_help', 'notes_client', 'notes_client_help', 'notes_save',
             'view_action', 'yes', 'no',

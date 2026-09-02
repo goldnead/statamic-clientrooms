@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — 2026-09-04
+## 0.3.0 — 2026-09-02
 
 What the client hands back.
 
@@ -30,8 +30,16 @@ What the client hands back.
   take the rows and leave the files orphaned in the container; a model hook removes them properly.
   That hook does not fire on a mass delete (`query()->delete()`).
 - A submission on a `draft` task does not reach the client, because the task does not.
+- **Uploads deliberately do not run inside a transaction.** A transaction rolls back rows and cannot
+  roll back a disk; a second file refused after the first was written would undo the bookkeeping and
+  strand the first recording in the container. `submitTask()` undoes its own work instead, files
+  included, and only fires `ClientRoomTaskSubmitted` once everything is stored.
+- Deleting a **room** now also removes its tasks, submissions, documents and every asset behind them.
+  The foreign keys cascade all four tables in SQL, and SQL knows nothing about an asset container.
+  The addon still offers no way to delete a room — rooms are closed — but a host who calls
+  `delete()` no longer strands a client's recordings.
 
-## 0.2.0 — 2026-09-03
+## 0.2.0 — 2026-09-02
 
 A task can now carry the work, and the coach decides when the client sees it.
 

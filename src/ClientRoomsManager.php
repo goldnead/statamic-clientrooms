@@ -22,10 +22,10 @@ use Goldnead\ClientRooms\Support\Timeline\RoomTimeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Contracts\Auth\User as UserContract;
+use Throwable;
 
 /**
  * The public face of the addon. Everything the site, a listener or a console
@@ -270,40 +270,52 @@ class ClientRoomsManager
 
         $room = $this->roomOf($task);
 
-        return DB::transaction(function () use ($task, $room, $body, $files, $submittedBy, $attributes): ClientRoomTaskSubmission {
-            $submission = $task->submissions()->create([
-                'body' => $body,
-                'submitted_by' => Owners::resolveId($submittedBy) ?? $submittedBy,
-                'submitted_at' => $attributes['submitted_at'] ?? now(),
-                'meta' => $attributes['meta'] ?? null,
-            ]);
+        $submission = $task->submissions()->create([
+            'body' => $body,
+            'submitted_by' => Owners::resolveId($submittedBy) ?? $submittedBy,
+            'submitted_at' => $attributes['submitted_at'] ?? now(),
+            'meta' => $attributes['meta'] ?? null,
+        ]);
 
+        // Deliberately not wrapped in a transaction. A transaction rolls back
+        // rows and cannot roll back a disk: a second file refused after the
+        // first was written would undo the bookkeeping and leave the first
+        // recording in the container with nothing pointing at it. The undoing
+        // is done by hand instead, and it takes the files with it.
+        try {
             foreach ($files as $file) {
                 $this->submissionFiles->attach($room, $submission, $file);
             }
+        } catch (Throwable $e) {
+            $this->submissionFiles->removeFor($submission->load('files'));
 
-            $room->touchActivity();
+            throw $e;
+        }
 
-            ClientRoomTaskSubmitted::dispatch($room, $task, $submission);
+        $room->touchActivity();
 
-            return $submission->load('files');
-        });
+        // Once everything is on disk and in the table, never before: a
+        // listener that mails the coach must not announce a submission that
+        // then fails to arrive.
+        ClientRoomTaskSubmitted::dispatch($room, $task, $submission);
+
+        return $submission->load('files');
     }
 
-    /** Take a submission back out, with the files it brought. */
-    public function removeSubmission(ClientRoomTaskSubmission|int $submission): void
+    /**
+     * Take a submission back out, with the files it brought.
+     *
+     * Says whether everything really went. The caller is a Control Panel
+     * screen that would otherwise report success over a recording still
+     * sitting in the container.
+     */
+    public function removeSubmission(ClientRoomTaskSubmission|int $submission): bool
     {
         $submission = $submission instanceof ClientRoomTaskSubmission
             ? $submission
             : ClientRoomTaskSubmission::query()->findOrFail($submission);
 
-        // The files first and one at a time: the cascade would take the rows
-        // but leave the assets behind as orphans on the disk.
-        foreach ($submission->files as $file) {
-            $this->submissionFiles->remove($file);
-        }
-
-        $submission->delete();
+        return $this->submissionFiles->removeFor($submission);
     }
 
     /** A link the holder may follow for a while. */

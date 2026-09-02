@@ -122,6 +122,32 @@ class RoomFiles
 
     public function attach(ClientRoom $room, UploadedFile $file, ?string $title = null, bool $visibleToClient = true, ?string $uploadedBy = null): ClientRoomFile
     {
+        $asset = $this->storeInto($room, $file, $this->folderFor($room));
+
+        $record = ClientRoomFile::create([
+            'room_id' => $room->id,
+            'container' => $asset->container()->handle(),
+            'path' => $asset->path(),
+            'title' => $title !== null && trim($title) !== '' ? trim($title) : $file->getClientOriginalName(),
+            'visible_to_client' => $visibleToClient,
+            'uploaded_by' => $uploadedBy,
+        ]);
+
+        $room->touchActivity();
+
+        return $record;
+    }
+
+    /**
+     * Put an uploaded file into the room's brand container, under the given
+     * folder, and hand back the asset that now exists.
+     *
+     * Shared with `SubmissionFiles`, which stores the client's own uploads in
+     * a folder of its own: which container, which disk and which extensions
+     * are the same rules for both directions, and worth stating once.
+     */
+    public function storeInto(ClientRoom $room, UploadedFile $file, string $folder): StatamicAsset
+    {
         if (! $this->isAllowed($file)) {
             throw new InvalidArgumentException(__('statamic-clientrooms::messages.file_type_refused', [
                 'extensions' => implode(', ', $this->allowedExtensions()),
@@ -147,7 +173,7 @@ class RoomFiles
         }
 
         $asset->container($container);
-        $asset->path($this->folderFor($room).'/'.$file->getClientOriginalName());
+        $asset->path($folder.'/'.$file->getClientOriginalName());
 
         // `upload()` writes the file, deduplicates the name and saves the
         // asset; its path afterwards is the one that actually exists. Checked
@@ -159,18 +185,7 @@ class RoomFiles
             throw new RuntimeException('statamic-clientrooms: the upload was refused by an AssetCreating listener.');
         }
 
-        $record = ClientRoomFile::create([
-            'room_id' => $room->id,
-            'container' => $container->handle(),
-            'path' => $asset->path(),
-            'title' => $title !== null && trim($title) !== '' ? trim($title) : $file->getClientOriginalName(),
-            'visible_to_client' => $visibleToClient,
-            'uploaded_by' => $uploadedBy,
-        ]);
-
-        $room->touchActivity();
-
-        return $record;
+        return $asset;
     }
 
     /** Remove the row and the asset behind it. */
