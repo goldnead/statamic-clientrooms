@@ -7,6 +7,7 @@ use Goldnead\ClientRooms\Http\Controllers\Cp\Concerns\AuthorizesRooms;
 use Goldnead\ClientRooms\Http\Resources\Cp\RoomsCollection;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
+use Goldnead\ClientRooms\Models\ClientRoomSession;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
@@ -59,6 +60,10 @@ class RoomsController extends CpController
             'room' => $this->present($room),
             'tasks' => $room->tasks()->with('submissions.files')->get()->map(fn (ClientRoomTask $task) => $this->presentTask($task))->values()->all(),
             'files' => $room->files()->get()->map(fn (ClientRoomFile $file) => $this->presentFile($file))->values()->all(),
+            // Every sitting, draft and archived included. This is the desk, not
+            // the client's room: the screen's whole job is to show what the
+            // client cannot see yet and let somebody decide about it.
+            'sessions' => $room->sessions()->get()->map(fn (ClientRoomSession $session) => $this->presentSession($session))->values()->all(),
             'timeline' => $timeline['entries'],
             'timelineMode' => $timeline['mode'],
             'timelineTotal' => $timeline['total'],
@@ -82,6 +87,8 @@ class RoomsController extends CpController
                 'reopen' => cp_route('client-rooms.reopen', $room->id),
                 'tasks' => cp_route('client-rooms.tasks.store', $room->id),
                 'files' => cp_route('client-rooms.files.store', $room->id),
+                // No `sessions` here: there is nothing to post a new sitting
+                // to. Each row carries its own update and delete URL.
             ],
             't' => $this->strings(),
         ]);
@@ -320,6 +327,75 @@ class RoomsController extends CpController
         ];
     }
 
+    /**
+     * One sitting, as the coach's desk shows it.
+     *
+     * Two pairs here look redundant and are not:
+     *
+     * - `has_recording` against `recording_url`. The first is a fact about the
+     *   hour, the second a link that expires. A sitting whose link has run out
+     *   still had a recording, and the row has to say so rather than look like
+     *   an hour nobody captured.
+     * - `status` against `published_status`. Where the sitting stands in the
+     *   sending system's workflow, and whether the client may read it. They
+     *   are unrelated, and a screen that conflated them would let somebody
+     *   publish by marking something complete.
+     *
+     * `notes` is in this shape and in no other. It is the reason this screen
+     * exists rather than a link back to the cockpit.
+     *
+     * @return array<string, mixed>
+     */
+    protected function presentSession(ClientRoomSession $session): array
+    {
+        return [
+            'id' => $session->id,
+            'external_id' => $session->external_id,
+            'title' => $session->title,
+            'held_at' => $session->held_at?->toIso8601String(),
+            'held_human' => $session->held_at?->diffForHumans(),
+            'held_date' => $session->held_at?->format('d.m.Y'),
+            'held_time' => $session->held_at?->format('H:i'),
+            'duration_minutes' => $session->duration_minutes,
+            'status' => $session->status,
+            // A word only where it is worth a badge. `completed` sits on
+            // almost every row of a coaching history, and a badge that is
+            // always there stops carrying anything — it just paints a green
+            // column that pulls the eye away from the two rows that are
+            // actually unusual. The neighbouring tasks panel reserves colour
+            // the same way, for `overdue` and `urgent`.
+            'status_label' => ($session->status !== null && $session->status !== ClientRoomSession::STATUS_COMPLETED)
+                ? $this->sessionStatusLabel($session->status)
+                : null,
+            'published_status' => $session->published_status,
+            'published' => $session->isPublished(),
+            'draft' => $session->isDraft(),
+            'archived' => $session->published_status === ClientRoomSession::PUBLISHED_ARCHIVED,
+            'coach_name' => $session->coach_name,
+            'agenda' => $session->agenda,
+            'summary' => $session->summary,
+            'has_protocol' => $session->hasProtocol(),
+            'protocol' => $session->protocolText(),
+            'protocol_blocks' => $session->protocolBlocks(),
+            'notes' => $session->notes,
+            'has_recording' => $session->hasRecording(),
+            'recording_url' => $session->recordingUrl(),
+            'recording_expired' => $session->hasRecording() && $session->recordingUrl() === null,
+            'has_transcript' => $session->hasTranscript(),
+            'transcript_url' => $session->transcriptUrl(),
+            'transcript_expired' => $session->transcript_url !== null && $session->transcriptUrl() === null,
+            'update_url' => cp_route('client-rooms.sessions.update', [$session->room_id, $session->id]),
+            'delete_url' => cp_route('client-rooms.sessions.destroy', [$session->room_id, $session->id]),
+        ];
+    }
+
+    protected function sessionStatusLabel(string $status): string
+    {
+        // `in-progress`, `review-ready` and `no-show` carry hyphens on the
+        // wire; a translation key cannot.
+        return $this->message('session_status_'.str_replace('-', '_', $status), $status);
+    }
+
     protected function taskTypeLabel(?string $type): ?string
     {
         return $type === null ? null : $this->message('task_type_'.$type, $type);
@@ -420,6 +496,11 @@ class RoomsController extends CpController
             'submission_handed_in', 'submission_delete_title', 'submission_delete_body', 'submission_file_missing', 'task_more', 'task_less', 'task_edit', 'task_publish', 'task_unpublish', 'tasks_draft_count',
             'panel_files', 'files_empty', 'file_title_placeholder', 'file_choose', 'file_upload', 'file_visible', 'file_hidden', 'file_missing', 'file_download', 'file_delete_title', 'file_delete_body', 'file_uploaded_by',
             'panel_notes', 'notes_internal', 'notes_internal_help', 'notes_client', 'notes_client_help', 'notes_save',
+            'panel_sessions', 'sessions_empty', 'sessions_count', 'sessions_draft_count', 'sessions_footnote', 'session_minutes_unit',
+            'session_agenda', 'session_summary', 'session_protocol', 'session_protocol_none', 'session_protocol_show', 'session_protocol_hide',
+            'session_recording', 'session_transcript', 'session_link_expired', 'session_link_none',
+            'session_visible', 'session_visible_help', 'session_draft', 'session_archived', 'session_no_date',
+            'session_notes', 'session_notes_help', 'session_notes_save', 'session_delete_title', 'session_delete_body',
             'view_action', 'yes', 'no',
         ];
 

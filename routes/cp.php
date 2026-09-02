@@ -2,6 +2,7 @@
 
 use Goldnead\ClientRooms\Http\Controllers\Cp\FilesController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\RoomsController;
+use Goldnead\ClientRooms\Http\Controllers\Cp\SessionsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\SubmissionsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\TasksController;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +37,12 @@ Route::prefix('client-rooms')->name('client-rooms.')->middleware('can:view clien
         Route::post('{room}/tasks', [TasksController::class, 'store'])->name('tasks.store')->whereNumber('room');
         Route::patch('{room}/tasks/{task}', [TasksController::class, 'update'])->name('tasks.update')->whereNumber(['room', 'task']);
         Route::delete('{room}/tasks/{task}', [TasksController::class, 'destroy'])->name('tasks.destroy')->whereNumber(['room', 'task']);
+
+        // No `sessions.store`. A sitting is recorded where it took place; this
+        // side only decides what the client sees of it and keeps the coach's
+        // own note. See SessionsController.
+        Route::patch('{room}/sessions/{session}', [SessionsController::class, 'update'])->name('sessions.update')->whereNumber(['room', 'session']);
+        Route::delete('{room}/sessions/{session}', [SessionsController::class, 'destroy'])->name('sessions.destroy')->whereNumber(['room', 'session']);
 
         Route::delete('{room}/submissions/{submission}', [SubmissionsController::class, 'destroy'])
             ->name('submissions.destroy')

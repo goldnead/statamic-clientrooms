@@ -17,6 +17,7 @@ const props = defineProps({
     room: { type: Object, required: true },
     tasks: { type: Array, default: () => [] },
     files: { type: Array, default: () => [] },
+    sessions: { type: Array, default: () => [] },
     timeline: { type: Array, default: () => [] },
     timelineMode: { type: String, default: 'fallback' },
     timelineTotal: { type: Number, default: 0 },
@@ -50,9 +51,17 @@ const ownerOptions = computed(() => [
 
 const owner = ref(props.room.owner_user_id ?? null);
 
+const ownerErrors = ref({});
+
 function changeOwner(value) {
     owner.value = value;
-    send('patch', props.urls.update, { owner_user_id: value });
+    send('patch', props.urls.update, { owner_user_id: value }, {
+        // Without this the refusal was silent: the controller answers with a
+        // field error, the page reloaded, and the picker showed the owner the
+        // save had just declined.
+        onError: (e) => { ownerErrors.value = e || {}; owner.value = props.room.owner_user_id ?? null; },
+        onSuccess: () => { ownerErrors.value = {}; },
+    });
 }
 
 const confirmClose = ref(false);
@@ -343,6 +352,108 @@ function removeFile() {
     if (file) send('delete', file.delete_url);
 }
 
+// ── Sessions ────────────────────────────────────────────────────────────────
+//
+// Read, mostly. A sitting is recorded in the cockpit that ran it; the two
+// things decided here are whether the client may read it and what the coach
+// writes down for themselves. So there is no add form and no edit form, only
+// a switch, a note and a way to remove a row that should not have come.
+
+const openSession = ref(null);
+const sessionNote = ref({});
+const sessionErrors = ref({});
+const deletingSession = ref(null);
+
+// "4 sittings · 1 not visible", the way the tasks panel says "4 open · 1
+// draft": the total first, the exception after it. The exception alone left
+// the reader without the number they came for.
+const sessionSubheading = computed(() => {
+    if (props.sessions.length === 0) return null;
+
+    const total = props.t.sessions_count.replace(':count', props.sessions.length);
+    const drafts = props.sessions.filter((s) => !s.published).length;
+
+    return drafts === 0 ? total : total + ' · ' + props.t.sessions_draft_count.replace(':count', drafts);
+});
+
+function toggleSession(session) {
+    openSession.value = openSession.value === session.id ? null : session.id;
+
+    // Seeded on opening rather than up front, so a room with forty sittings
+    // does not carry forty strings around for the one that gets read.
+    if (sessionNote.value[session.id] === undefined) {
+        sessionNote.value[session.id] = session.notes ?? '';
+    }
+}
+
+function sessionNoteDirty(session) {
+    return (sessionNote.value[session.id] ?? '') !== (session.notes ?? '');
+}
+
+function saveSessionNote(session) {
+    send('patch', session.update_url, { notes: sessionNote.value[session.id] ?? '' }, {
+        onError: (e) => { sessionErrors.value = e || {}; },
+        onSuccess: () => { sessionErrors.value = {}; },
+    });
+}
+
+function toggleSessionVisible(session, visible) {
+    // Switching an archived sitting on and off again used to leave it a draft:
+    // the switch knows two words and the column holds three, so the third was
+    // spent the first time anybody touched it. Turning off returns a sitting
+    // to where it was.
+    const off = session.archived ? 'archived' : 'draft';
+
+    send('patch', session.update_url, { published_status: visible ? 'published' : off }, {
+        onError: (e) => { sessionErrors.value = e || {}; },
+    });
+}
+
+function removeSession() {
+    const session = deletingSession.value;
+    deletingSession.value = null;
+
+    if (session) send('delete', session.delete_url);
+}
+
+// A sitting that was recorded and whose link has run out is not a sitting
+// without a recording. The row has to be able to say the difference — but
+// quietly: "(Link abgelaufen)" written out behind each of the two made the
+// oldest, least interesting row the longest line in the panel, and it wrapped.
+// The live ones are links, the dead ones are dimmed words, and the reason is
+// said once at the end.
+// Three states, not two. "There is a recording and the link has run out" and
+// "there is a transcript and there never was a link here" are different facts,
+// and the server already tells them apart in `*_expired`. Reading only the
+// `has_*` flags made the second one claim the first: a sitting imported with
+// `has_transcript` and no URL said "Transkript (Link abgelaufen)", and a coach
+// who reads that stops asking for a link that was never issued.
+function sessionMedia(session) {
+    const live = [];
+    const expired = [];
+    const linkless = [];
+
+    if (session.recording_url) live.push({ key: 'rec', label: props.t.session_recording, url: session.recording_url });
+    else if (session.recording_expired) expired.push(props.t.session_recording);
+    else if (session.has_recording) linkless.push(props.t.session_recording);
+
+    if (session.transcript_url) live.push({ key: 'tr', label: props.t.session_transcript, url: session.transcript_url });
+    else if (session.transcript_expired) expired.push(props.t.session_transcript);
+    else if (session.has_transcript) linkless.push(props.t.session_transcript);
+
+    return { live, expired: expired.join(' · '), linkless: linkless.join(' · ') };
+}
+
+const sessionStatusColor = (status) => ({
+    completed: 'green',
+    scheduled: 'default',
+    'in-progress': 'blue',
+    processing: 'blue',
+    'review-ready': 'amber',
+    cancelled: 'red',
+    'no-show': 'red',
+}[status] ?? 'default');
+
 // ── Notes ───────────────────────────────────────────────────────────────────
 
 const notes = ref({ notes: props.room.notes ?? '', client_notes: props.room.client_notes ?? '' });
@@ -625,6 +736,155 @@ function saveNotes() {
                     </Card>
                 </Panel>
 
+                <!-- Sessions: what happened. Written elsewhere, decided here.
+                     Every sitting is listed, drafts included — this is the
+                     coach's desk, and its job is to show what the client
+                     cannot see yet. -->
+                <Panel :heading="t.panel_sessions" :subheading="sessionSubheading">
+                    <Card>
+                        <div v-if="sessions.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                            {{ t.sessions_empty }}
+                        </div>
+                        <ul v-else class="-my-2 divide-y divide-content-border">
+                            <li v-for="session in sessions" :key="session.id" class="py-2">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-sm font-medium">{{ session.title }}</span>
+                                            <Badge
+                                                v-if="session.status_label"
+                                                size="sm"
+                                                :color="sessionStatusColor(session.status)"
+                                                :text="session.status_label"
+                                            />
+                                            <Badge v-if="session.draft" size="sm" color="amber" :text="t.session_draft" />
+                                            <Badge v-if="session.archived" size="sm" color="default" :text="t.session_archived" />
+                                        </div>
+                                        <!-- Separated by middots rather than
+                                             spaces: the line runs date, length,
+                                             coach and two media words together,
+                                             and without them "Adrian Goldner
+                                             Recording Transcript" reads as one
+                                             thing. -->
+                                        <div class="flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                            <span :title="session.held_at || ''">
+                                                {{ session.held_date ? session.held_date + ', ' + session.held_time : t.session_no_date }}
+                                            </span>
+                                            <template v-if="session.duration_minutes">
+                                                <span aria-hidden="true">·</span>
+                                                <span>{{ session.duration_minutes }} {{ t.session_minutes_unit }}</span>
+                                            </template>
+                                            <template v-if="session.coach_name">
+                                                <span aria-hidden="true">·</span>
+                                                <span>{{ session.coach_name }}</span>
+                                            </template>
+                                            <template v-for="line in sessionMedia(session).live" :key="line.key">
+                                                <span aria-hidden="true">·</span>
+                                                <a :href="line.url" target="_blank" rel="noopener" class="underline underline-offset-2">{{ line.label }}</a>
+                                            </template>
+                                            <template v-if="sessionMedia(session).expired">
+                                                <span aria-hidden="true">·</span>
+                                                <span class="italic opacity-70">{{ sessionMedia(session).expired }} {{ t.session_link_expired }}</span>
+                                            </template>
+                                            <template v-if="sessionMedia(session).linkless">
+                                                <span aria-hidden="true">·</span>
+                                                <span class="italic opacity-70">{{ sessionMedia(session).linkless }} {{ t.session_link_none }}</span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <!-- Bare switch, no written label. The tasks
+                                         panel next door does the same, and its
+                                         switches line up with these; a word
+                                         repeated on every row pushed the whole
+                                         column 190px left, broke the meta line,
+                                         and on a draft row said out loud what
+                                         the badge beside it already said. The
+                                         meaning lives in the title instead. -->
+                                    <div class="flex shrink-0 items-center gap-3">
+                                        <Switch
+                                            :model-value="session.published"
+                                            size="sm"
+                                            :disabled="!canEdit || busy"
+                                            :title="session.published ? t.session_visible : t.session_draft"
+                                            :aria-label="t.session_visible"
+                                            @update:model-value="toggleSessionVisible(session, $event)"
+                                        />
+                                        <Button
+                                            :icon="openSession === session.id ? 'chevron-up' : 'chevron-down'"
+                                            variant="ghost"
+                                            size="sm"
+                                            :aria-label="openSession === session.id ? t.session_protocol_hide : t.session_protocol_show"
+                                            @click="toggleSession(session)"
+                                        />
+                                        <Button
+                                            v-if="canEdit"
+                                            icon="trash"
+                                            variant="ghost"
+                                            size="sm"
+                                            :aria-label="t.delete"
+                                            @click="deletingSession = session"
+                                        />
+                                    </div>
+                                </div>
+
+                                <!-- Hung on the row it belongs to by an indent
+                                     and a rule down the left, so that halfway
+                                     through a long write-up it is still clear
+                                     which sitting is being read. -->
+                                <div v-if="openSession === session.id" class="mt-3 ms-1 space-y-5 border-s-2 border-content-border ps-4">
+                                    <div v-if="session.agenda">
+                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_agenda }}</div>
+                                        <p class="mt-0.5 text-sm whitespace-pre-line">{{ session.agenda }}</p>
+                                    </div>
+                                    <div v-if="session.summary">
+                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_summary }}</div>
+                                        <p class="mt-0.5 text-sm whitespace-pre-line">{{ session.summary }}</p>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_protocol }}</div>
+                                        <!-- Blocks, never markup. The write-up is HTML from a
+                                             system this addon did not author and a Control Panel
+                                             is a superuser session, so the server hands over the
+                                             one distinction that carries the structure — heading
+                                             or not — and the elements below are the screen's own.
+                                             Flattened to one string, the subheadings sat in the
+                                             same weight as their paragraphs and the longest block
+                                             on the page ran together. -->
+                                        <div v-if="session.protocol_blocks.length" class="mt-0.5 space-y-1">
+                                            <template v-for="(block, i) in session.protocol_blocks" :key="i">
+                                                <p v-if="block.type === 'heading'" class="pt-1.5 text-sm font-semibold">{{ block.text }}</p>
+                                                <p v-else class="text-sm whitespace-pre-line">{{ block.text }}</p>
+                                            </template>
+                                        </div>
+                                        <p v-else class="mt-0.5 text-sm text-gray-500 italic dark:text-gray-400">{{ t.session_protocol_none }}</p>
+                                    </div>
+
+                                    <div v-if="canEdit">
+                                        <Field :label="t.session_notes" :instructions="t.session_notes_help" :error="sessionErrors.notes">
+                                            <Textarea v-model="sessionNote[session.id]" :rows="3" />
+                                        </Field>
+                                        <Button
+                                            class="mt-2"
+                                            size="sm"
+                                            :text="t.session_notes_save"
+                                            :disabled="busy || !sessionNoteDirty(session)"
+                                            @click="saveSessionNote(session)"
+                                        />
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+
+                        <!-- The panel would otherwise stop mid-air. Its two
+                             neighbours end in a form, and the absence of one
+                             here is the thing worth explaining: sittings are
+                             not typed, they arrive. -->
+                        <p v-if="sessions.length" class="mt-4 border-t border-content-border pt-3 text-xs text-gray-500 dark:text-gray-400">
+                            {{ t.sessions_footnote }}
+                        </p>
+                    </Card>
+                </Panel>
+
                 <!-- Timeline: LeadHub's merged list where it is installed, the
                      room's own short list from payments and bookings otherwise.
                      Both arrive in one shape and render with one template. -->
@@ -728,14 +988,15 @@ function saveNotes() {
                             <div class="px-4 py-2.5">
                                 <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t.field_owner }}</dt>
                                 <dd class="mt-1">
-                                    <Select
-                                        v-if="canEdit"
-                                        :model-value="owner"
-                                        :options="ownerOptions"
-                                        size="sm"
-                                        :disabled="busy"
-                                        @update:model-value="changeOwner"
-                                    />
+                                    <Field v-if="canEdit" :error="ownerErrors.owner_user_id">
+                                        <Select
+                                            :model-value="owner"
+                                            :options="ownerOptions"
+                                            size="sm"
+                                            :disabled="busy"
+                                            @update:model-value="changeOwner"
+                                        />
+                                    </Field>
                                     <span v-else>{{ room.owner_label || t.owner_none }}</span>
                                 </dd>
                             </div>
@@ -811,6 +1072,16 @@ function saveNotes() {
             danger
             @update:open="deletingFile = $event ? deletingFile : null"
             @confirm="removeFile"
+        />
+
+        <ConfirmationModal
+            :open="deletingSession !== null"
+            :title="t.session_delete_title"
+            :body-text="t.session_delete_body"
+            :button-text="t.delete"
+            danger
+            @update:open="deletingSession = $event ? deletingSession : null"
+            @confirm="removeSession"
         />
 
         <DocsCallout

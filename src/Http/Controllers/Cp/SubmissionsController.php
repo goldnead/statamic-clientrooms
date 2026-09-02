@@ -55,8 +55,13 @@ class SubmissionsController extends CpController
         // Asked, not assumed: an asset that refuses to go leaves a client's
         // recording in the container, and a green toast over that is a lie
         // about where the recording is.
+        // Said with `error`, not `withErrors`. A field error needs a field to
+        // land on, and this one is raised by a button in a confirmation modal
+        // that is already gone by the time the answer arrives — the message
+        // went into a bag nothing was reading, and the refusal looked like a
+        // success. `error` is toasted red by the Control Panel itself.
         if (! $this->rooms->removeSubmission($this->submission($room->id, $submission))) {
-            return back()->withErrors(['submission' => __('statamic-clientrooms::messages.submission_delete_failed')]);
+            return back()->with('error', __('statamic-clientrooms::messages.submission_delete_failed'));
         }
 
         $room->touchActivity();

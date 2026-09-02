@@ -212,7 +212,15 @@ class MemberController extends Controller
             'status' => $session->status,
             'agenda' => $session->agenda,
             'summary' => $session->summary,
-            'protocol' => $session->protocol,
+            // The same two names the tag uses, and for the same reason. Before
+            // this, `protocol` meant plain text in one shape and raw HTML in
+            // the other, which is a trap either way: a front end that escapes
+            // it dutifully shows the client `<h3>` in words, and one that does
+            // not renders markup from another system without ever having been
+            // told that is what it was doing.
+            'protocol' => $session->protocolText(),
+            'protocol_html' => $session->protocol,
+            'has_protocol' => $session->hasProtocol(),
             'coach_name' => $session->coach_name,
             'has_recording' => $session->hasRecording(),
             'recording_url' => $session->recordingUrl(),

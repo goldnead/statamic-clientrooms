@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.6.0 — 2026-09-02
+
+The sessions panel, and two things the write-up was quietly doing wrong.
+
+### Added
+
+- **A sessions panel on the room screen.** Every sitting, drafts included — this is the coach's desk,
+  and showing what the client cannot see yet is the reason to open it. Each row carries the date, the
+  length, the coach, and the state of the recording and the transcript; the chevron opens agenda,
+  summary, the write-up and the coach's own notes.
+- `PATCH`/`DELETE` under `client-rooms/{room}/sessions/{session}`. **Deliberately no `store` and no
+  edit form**: a sitting is recorded where it took place, and a second form here would invite two
+  versions of one hour that the next import would silently win. What the screen decides is
+  `published_status` and `notes`; both are `sometimes`, so the switch never clears a note and the note
+  never republishes a draft.
+- `ClientRoomSession::protocolText()` and `protocolBlocks()`.
+- `protocol_html` in the tag and in the members JSON, next to `protocol`.
+
+### Fixed
+
+- **A bare `<` in a write-up swallowed the rest of it.** `strip_tags` reads `3<5 Minuten` as the
+  start of a tag and eats everything to the next `>`; a protocol reading "Wir haben 3<5 Minuten
+  geübt und danach …" arrived as "Wir haben 3", in the Control Panel and on the client's page, with
+  nothing logged. Checking for a letter is not enough either — `A<B und <strong>` fails the same way
+  — so a `<` now survives unless a complete, plausible tag follows it.
+- **The write-up was escaped whole in the tag**, which showed the client `<h3>` in words. `protocol`
+  is now the same text with the block tags turned back into line breaks; `protocol_html` is the
+  markup, unescaped and unsanitised, and the README says so. This is the one exception to "every
+  free-text value arrives HTML-escaped".
+- `protocol` meant plain text in the tag and raw HTML in the members JSON. Both now speak the same
+  two names.
+- `hasProtocol()` asks the text, not the column: `<p></p>` is a column that holds something and a
+  screen that holds nothing.
+- A failed submission deletion was reported with `withErrors()` to a field the room screen does not
+  have, so the refusal was invisible and a client's recording looked deleted when it was not. Now
+  `with('error')`, which the Control Panel toasts red.
+- The owner picker had no error binding and silently kept showing an owner the save had declined.
+
+### Notes
+
+- The panel distinguishes three states, not two: a live link, a link that has run out, and a
+  transcript that exists with no link ever issued. Calling the third one "expired" would tell the
+  coach to stop asking for a link that was never minted.
+- Turning an **archived** session on and off again used to leave it a draft — the switch knows two
+  words and the column holds three. It now returns to where it was.
+- The status badge is silent for `completed`. It sits on almost every row of a coaching history, and
+  a badge that is always there paints a column instead of carrying information.
+
 ## 0.5.0 — 2026-09-02
 
 What happened, and not just what is owed.

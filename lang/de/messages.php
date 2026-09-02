@@ -178,7 +178,50 @@ return [
     'room_files' => 'Unterlagen',
     'room_files_none' => 'Noch nichts geteilt.',
 
-    // Sitzungen
+    // Sitzungen — Control Panel
+    'panel_sessions' => 'Sitzungen',
+    'sessions_empty' => 'Noch keine Sitzungen erfasst.',
+    'sessions_count' => ':count Sitzungen',
+    'sessions_draft_count' => ':count nicht sichtbar',
+    'sessions_footnote' => 'Sitzungen entstehen dort, wo sie stattfinden, und werden hierher durchgeschrieben. Hier entscheidest du, was der Klient davon sieht.',
+    'session_minutes_unit' => 'Min.',
+    'session_agenda' => 'Agenda',
+    'session_summary' => 'Zusammenfassung',
+    'session_protocol' => 'Protokoll',
+    'session_protocol_none' => 'Kein Protokoll.',
+    'session_protocol_show' => 'Protokoll lesen',
+    'session_protocol_hide' => 'Protokoll zuklappen',
+    'session_recording' => 'Aufnahme',
+    'session_transcript' => 'Transkript',
+    // Einmal am Ende, statt hinter jedem der beiden Wörter. Und zwei
+    // verschiedene Sachen: ein Link, der abgelaufen ist, und einer, den es nie
+    // gab.
+    'session_link_expired' => '(Link abgelaufen)',
+    'session_link_none' => '(kein Link)',
+    'session_visible' => 'Für Klient sichtbar',
+    'session_visible_help' => 'Aus lässt die Sitzung auf deinem Schreibtisch.',
+    'session_draft' => 'Nicht sichtbar',
+    'session_archived' => 'Archiviert',
+    'session_no_date' => 'Ohne Datum',
+    'session_notes' => 'Deine Notizen',
+    'session_notes_help' => 'Nur du siehst sie. Kein Import überschreibt sie.',
+    'session_notes_save' => 'Notizen speichern',
+    'session_delete_title' => 'Sitzung löschen?',
+    'session_delete_body' => 'Die Sitzung verschwindet aus diesem Raum. Aufnahme und Transkript bleiben, wo sie sind.',
+    'session_source' => 'Importiert',
+    'session_saved' => 'Sitzung gespeichert.',
+    'session_deleted' => 'Sitzung gelöscht.',
+
+    // Sitzungsstatus, in der Schreibweise des Cockpits.
+    'session_status_scheduled' => 'Geplant',
+    'session_status_in_progress' => 'Läuft',
+    'session_status_processing' => 'In Verarbeitung',
+    'session_status_review_ready' => 'Bereit zur Durchsicht',
+    'session_status_completed' => 'Abgeschlossen',
+    'session_status_cancelled' => 'Abgesagt',
+    'session_status_no_show' => 'Nicht erschienen',
+
+    // Sitzungen — Frontend
     'room_sessions' => 'Deine Sitzungen',
     'room_sessions_none' => 'Noch keine Sitzungen.',
     'room_session_protocol' => 'Protokoll',

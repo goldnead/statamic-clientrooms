@@ -99,22 +99,7 @@ class ClientRoom extends Tags
             // run out arrives as null and the template shows no button. The
             // `has_*` flags still say the recording exists, which is what lets
             // a page say "ask your coach" instead of nothing at all.
-            'sessions' => $room->sessions()->published()->get()->map(fn (ClientRoomSession $session): array => [
-                'id' => $session->id,
-                'title' => e($session->title),
-                'held_at' => $session->held_at,
-                'duration_minutes' => $session->duration_minutes,
-                'status' => $session->status !== null ? e($session->status) : null,
-                'agenda' => $session->agenda !== null ? e($session->agenda) : null,
-                'summary' => $session->summary !== null ? e($session->summary) : null,
-                'protocol' => $session->protocol !== null ? e($session->protocol) : null,
-                'coach_name' => $session->coach_name !== null ? e($session->coach_name) : null,
-                'has_protocol' => $session->hasProtocol(),
-                'has_recording' => $session->hasRecording(),
-                'recording_url' => $session->recordingUrl(),
-                'has_transcript' => $session->hasTranscript(),
-                'transcript_url' => $session->transcriptUrl(),
-            ])->values()->all(),
+            'sessions' => $room->sessions()->published()->get()->map(fn (ClientRoomSession $session): array => $this->presentSession($session))->values()->all(),
             'files' => $room->files()->where('visible_to_client', true)->get()->map(fn (ClientRoomFile $file): array => [
                 'id' => $file->id,
                 'title' => e($file->displayTitle()),
@@ -122,6 +107,45 @@ class ClientRoom extends Tags
                 'url' => $this->rooms->downloadUrl($file),
                 'uploaded_at' => $file->created_at,
             ])->values()->all(),
+        ];
+    }
+
+    /**
+     * One sitting, as the client's page may have it.
+     *
+     * **`protocol_html` is the single unescaped value this tag yields, and the
+     * only exception to the rule above.** The write-up is HTML by design: it
+     * comes from the system that ran the sitting, with headings and paragraphs,
+     * and escaping it whole would put `<h3>` in front of the client in words.
+     * A site that prints it is deciding to trust that system; the addon does
+     * not sanitise it and says so in the README.
+     *
+     * `protocol` is the safe half of that decision: the same write-up with the
+     * block tags turned back into the line breaks they stood for and the rest
+     * dropped, escaped like everything else. Print it with `| nl2br`.
+     *
+     * @return array<string, mixed>
+     */
+    protected function presentSession(ClientRoomSession $session): array
+    {
+        $protocol = $session->protocolText();
+
+        return [
+            'id' => $session->id,
+            'title' => e($session->title),
+            'held_at' => $session->held_at,
+            'duration_minutes' => $session->duration_minutes,
+            'status' => $session->status !== null ? e($session->status) : null,
+            'agenda' => $session->agenda !== null ? e($session->agenda) : null,
+            'summary' => $session->summary !== null ? e($session->summary) : null,
+            'protocol' => $protocol !== null ? e($protocol) : null,
+            'protocol_html' => $session->protocol,
+            'coach_name' => $session->coach_name !== null ? e($session->coach_name) : null,
+            'has_protocol' => $session->hasProtocol(),
+            'has_recording' => $session->hasRecording(),
+            'recording_url' => $session->recordingUrl(),
+            'has_transcript' => $session->hasTranscript(),
+            'transcript_url' => $session->transcriptUrl(),
         ];
     }
 

@@ -178,7 +178,49 @@ return [
     'room_files' => 'Documents',
     'room_files_none' => 'Nothing shared yet.',
 
-    // Sessions
+    // Sessions — Control Panel
+    'panel_sessions' => 'Sessions',
+    'sessions_empty' => 'No sessions recorded yet.',
+    'sessions_count' => ':count sessions',
+    'sessions_draft_count' => ':count not visible',
+    'sessions_footnote' => 'Sessions are recorded where they take place and written through to here. This is where you decide what the client sees of them.',
+    'session_minutes_unit' => 'min',
+    'session_agenda' => 'Agenda',
+    'session_summary' => 'Summary',
+    'session_protocol' => 'Write-up',
+    'session_protocol_none' => 'No write-up.',
+    'session_protocol_show' => 'Read write-up',
+    'session_protocol_hide' => 'Hide write-up',
+    'session_recording' => 'Recording',
+    'session_transcript' => 'Transcript',
+    // Once at the end, rather than behind each of the two words. And two
+    // different things: a link that has run out, and one that never existed.
+    'session_link_expired' => '(link expired)',
+    'session_link_none' => '(no link)',
+    'session_visible' => 'Visible to client',
+    'session_visible_help' => 'Off keeps the session on your desk.',
+    'session_draft' => 'Not visible',
+    'session_archived' => 'Archived',
+    'session_no_date' => 'No date',
+    'session_notes' => 'Your notes',
+    'session_notes_help' => 'Only you see these. No import overwrites them.',
+    'session_notes_save' => 'Save notes',
+    'session_delete_title' => 'Delete session?',
+    'session_delete_body' => 'The session disappears from this room. The recording and the transcript stay where they are.',
+    'session_source' => 'Imported',
+    'session_saved' => 'Session saved.',
+    'session_deleted' => 'Session deleted.',
+
+    // Session status, as the cockpit spells it.
+    'session_status_scheduled' => 'Scheduled',
+    'session_status_in_progress' => 'In progress',
+    'session_status_processing' => 'Processing',
+    'session_status_review_ready' => 'Ready for review',
+    'session_status_completed' => 'Completed',
+    'session_status_cancelled' => 'Cancelled',
+    'session_status_no_show' => 'No-show',
+
+    // Sessions — frontend
     'room_sessions' => 'Your sessions',
     'room_sessions_none' => 'No sessions yet.',
     'room_session_protocol' => 'Write-up',

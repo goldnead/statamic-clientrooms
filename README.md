@@ -172,8 +172,9 @@ room.
 Variables: `id`, `name`, `email`, `status`, `opened_at`, `owner_name`, `notes_for_client`, `tasks`
 (`id`, `title`, `description`, `type`, `priority`, `status`, `estimated_minutes`, `due_at`, `done`,
 `done_at`, `overdue`, `submitted`, `submission_count`, `submissions`), `sessions` (`id`, `title`,
-`held_at`, `duration_minutes`, `status`, `agenda`, `summary`, `protocol`, `coach_name`,
-`has_protocol`, `has_recording`, `recording_url`, `has_transcript`, `transcript_url` — newest first),
+`held_at`, `duration_minutes`, `status`, `agenda`, `summary`, `protocol`, `protocol_html`,
+`coach_name`, `has_protocol`, `has_recording`, `recording_url`, `has_transcript`,
+`transcript_url` — newest first),
 `files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
 signed URLs). A closed room, a user without one, or no user at all: `no_results`. A ready-made view
 ships as `{{ partial:statamic-clientrooms::room }}`.
@@ -190,6 +191,18 @@ anybody having written that word.
 file titles, `filename`). Print them as they are; for line breaks in the notes use `| nl2br`. If your
 template escapes again, use `sanitize:0` so the entities are not encoded twice (`sanitize:false`
 double-encodes: Antlers reads the parameter as a string).
+
+**`protocol_html` is the one exception, and it is deliberate.** A session's write-up is HTML by
+design — it comes from the system that ran the sitting, with headings and paragraphs — so escaping it
+whole would show the client `<h3>` in words. The tag therefore yields it twice:
+
+- `protocol` — the same write-up as **plain text**: block tags turned back into the line breaks they
+  stood for, everything else dropped, then escaped like every other value. Print it with `| nl2br`.
+  This is the safe default and what most sites want.
+- `protocol_html` — the markup exactly as it arrived, **not escaped and not sanitised**. Printing it
+  is a decision to trust whatever wrote it. The addon does not clean it for you.
+
+The same two names, with the same meanings, are in the members JSON.
 
 **Download links are bearer links.** `url` is valid for `download_ttl_minutes` (30 by default) for
 anyone who holds it, and is produced fresh on every render. Keep the page behind your login and do
