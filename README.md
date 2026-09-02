@@ -16,6 +16,9 @@ last week, the note about what to work on next. That is what a room is.
   due date, done by whom. Ticking one fires `ClientRoomTaskCompleted`, once. Every task carries a
   `published_status`, and only `published` reaches the client — a task the coach is still writing is
   in the Control Panel and nowhere else.
+- **Submissions.** The client hands a task back with text, files, or both. A second attempt is a
+  second submission, never an overwrite. Handing in fires `ClientRoomTaskSubmitted` and is not the
+  same thing as the coach ticking the task off.
 - **Documents.** Statamic assets in one container per brand, one folder per room. Each file has a
   visible-to-client switch; the client downloads through a signed link that expires after 30 minutes
   and never sees the storage path. Only configured file types are accepted.
@@ -26,7 +29,8 @@ last week, the note about what to work on next. That is what a room is.
   second.
 - **A tag for the members area.** `{{ client_room }}` renders the signed-in user's own room and nobody
   else's. `{{ client_room:exists }}` says whether there is one.
-- **Events** for automations: `ClientRoomOpened`, `ClientRoomClosed`, `ClientRoomTaskCompleted`.
+- **Events** for automations: `ClientRoomOpened`, `ClientRoomClosed`, `ClientRoomTaskCompleted`,
+  `ClientRoomTaskSubmitted`.
 
 Nothing else in the suite is required. Payments, LeadHub, Booking and Brand Context are detected with
 `class_exists` and used when present.
@@ -35,7 +39,7 @@ Nothing else in the suite is required. Payments, LeadHub, Booking and Brand Cont
 
 - PHP 8.2 or newer
 - Statamic 6 (Laravel 12 or 13)
-- A database: MySQL or SQLite. The three tables are the addon.
+- A database: MySQL or SQLite. The five tables are the addon.
 - A disk for the documents. The default `local` disk of every Laravel install will do.
 
 ## Install
@@ -91,6 +95,10 @@ $task = ClientRooms::addTask($room, 'Send the recording', now()->addWeek(), null
 
 ClientRooms::updateTask($task, ['priority' => 'low']);   // only the keys you hand over
 ClientRooms::publishTask($task, false);              // back to draft: the client stops seeing it
+$submission = ClientRooms::submitTask($task, 'Here is my recording.', [$uploadedFile]);
+ClientRooms::submissionDownloadUrl($submission->files[0]);   // signed, expires
+ClientRooms::removeSubmission($submission);          // takes its files off the disk too
+
 ClientRooms::completeTask($task);                    // idempotent, one event
 ClientRooms::reopenTask($task);
 
@@ -134,7 +142,7 @@ room.
 
 Variables: `id`, `name`, `email`, `status`, `opened_at`, `owner_name`, `notes_for_client`, `tasks`
 (`id`, `title`, `description`, `type`, `priority`, `status`, `estimated_minutes`, `due_at`, `done`,
-`done_at`, `overdue`), `files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
+`done_at`, `overdue`, `submitted`, `submission_count`, `submissions`), `files` (`id`, `title`, `filename`, `url`, `uploaded_at` — visible files only,
 signed URLs). A closed room, a user without one, or no user at all: `no_results`. A ready-made view
 ships as `{{ partial:statamic-clientrooms::room }}`.
 

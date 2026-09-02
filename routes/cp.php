@@ -2,6 +2,7 @@
 
 use Goldnead\ClientRooms\Http\Controllers\Cp\FilesController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\RoomsController;
+use Goldnead\ClientRooms\Http\Controllers\Cp\SubmissionsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\TasksController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,11 @@ Route::prefix('client-rooms')->name('client-rooms.')->middleware('can:view clien
     Route::get('{room}', [RoomsController::class, 'show'])->name('show')->whereNumber('room');
     Route::get('{room}/files/{file}/download', [FilesController::class, 'download'])->name('files.download')->whereNumber(['room', 'file']);
 
+    // What the client sent back. Reading it is part of looking at the room.
+    Route::get('{room}/submissions/files/{file}/download', [SubmissionsController::class, 'download'])
+        ->name('submissions.download')
+        ->whereNumber(['room', 'file']);
+
     Route::middleware('can:edit client rooms')->group(function (): void {
         Route::post('/', [RoomsController::class, 'store'])->name('store');
         Route::patch('{room}', [RoomsController::class, 'update'])->name('update')->whereNumber('room');
@@ -30,6 +36,10 @@ Route::prefix('client-rooms')->name('client-rooms.')->middleware('can:view clien
         Route::post('{room}/tasks', [TasksController::class, 'store'])->name('tasks.store')->whereNumber('room');
         Route::patch('{room}/tasks/{task}', [TasksController::class, 'update'])->name('tasks.update')->whereNumber(['room', 'task']);
         Route::delete('{room}/tasks/{task}', [TasksController::class, 'destroy'])->name('tasks.destroy')->whereNumber(['room', 'task']);
+
+        Route::delete('{room}/submissions/{submission}', [SubmissionsController::class, 'destroy'])
+            ->name('submissions.destroy')
+            ->whereNumber(['room', 'submission']);
 
         Route::post('{room}/files', [FilesController::class, 'store'])->name('files.store')->whereNumber('room');
         Route::patch('{room}/files/{file}', [FilesController::class, 'update'])->name('files.update')->whereNumber(['room', 'file']);

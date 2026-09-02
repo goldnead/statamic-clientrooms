@@ -117,6 +117,14 @@ return [
     'task_edit' => 'Edit',
     'task_publish' => 'Make visible',
     'task_unpublish' => 'Back to draft',
+    'panel_submissions' => 'Submissions',
+    'submission_none' => 'Nothing handed in yet.',
+    'submission_count' => ':count handed in',
+    'submission_handed_in' => 'Handed in',
+    'submission_delete_title' => 'Remove this submission?',
+    'submission_delete_body' => 'The submission and its files are deleted. This cannot be undone.',
+    'submission_file_missing' => 'File missing',
+    'submission_deleted' => 'Submission removed.',
     'tasks_draft_count' => ':count in draft',
 
     // The kind of task. Extend it in the config; a value without a translation
@@ -167,6 +175,7 @@ return [
     'room_tasks' => 'Your tasks',
     'room_tasks_none' => 'Nothing open.',
     'room_due' => 'until',
+    'room_submitted' => 'Handed in on',
     'room_files' => 'Documents',
     'room_files_none' => 'Nothing shared yet.',
 ];

@@ -6,6 +6,8 @@ use Goldnead\ClientRooms\ClientRoomsManager;
 use Goldnead\ClientRooms\Models\ClientRoom as Room;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
+use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
+use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Goldnead\ClientRooms\Support\Owners;
 use Statamic\Facades\User;
 use Statamic\Tags\Tags;
@@ -59,7 +61,7 @@ class ClientRoom extends Tags
             // one put away as archived, is not in this list at all — not
             // greyed out, not flagged, absent. The template cannot leak what
             // it never receives.
-            'tasks' => $room->tasks()->published()->get()->map(fn (ClientRoomTask $task): array => [
+            'tasks' => $room->tasks()->published()->with('submissions.files')->get()->map(fn (ClientRoomTask $task): array => [
                 'id' => $task->id,
                 'title' => e($task->title),
                 'description' => $task->description !== null ? e($task->description) : null,
@@ -71,6 +73,21 @@ class ClientRoom extends Tags
                 'done' => $task->isDone(),
                 'done_at' => $task->done_at,
                 'overdue' => $task->isOverdue(),
+                'submitted' => $task->submissions->isNotEmpty(),
+                'submission_count' => $task->submissions->count(),
+                // The client's own work, handed back to them. No visibility
+                // switch here as there is on a document: they wrote it.
+                'submissions' => $task->submissions->map(fn (ClientRoomTaskSubmission $submission): array => [
+                    'id' => $submission->id,
+                    'body' => $submission->body !== null ? e($submission->body) : null,
+                    'submitted_at' => $submission->handedInAt(),
+                    'files' => $submission->files->map(fn (ClientRoomTaskSubmissionFile $file): array => [
+                        'id' => $file->id,
+                        'filename' => e($file->filename()),
+                        'size' => $file->size,
+                        'url' => $this->rooms->submissionDownloadUrl($file),
+                    ])->values()->all(),
+                ])->values()->all(),
             ])->values()->all(),
             'files' => $room->files()->where('visible_to_client', true)->get()->map(fn (ClientRoomFile $file): array => [
                 'id' => $file->id,

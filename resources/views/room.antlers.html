@@ -40,6 +40,18 @@
                                 <span>{{ title | sanitize:0 }}</span>
                                 {{ if description }}<p class="client-room__task-description">{{ description | sanitize:0 | nl2br }}</p>{{ /if }}
                                 {{ if due_at && !done }}<small>{{ trans key="statamic-clientrooms::messages.room_due" }} {{ due_at format="d.m.Y" }}</small>{{ /if }}
+                                {{ if submitted }}
+                                    {{# What you sent back, so you can see that it arrived. #}}
+                                    <ul class="client-room__submissions">
+                                        {{ submissions }}
+                                            <li>
+                                                <small>{{ trans key="statamic-clientrooms::messages.room_submitted" }} {{ submitted_at format="d.m.Y" }}</small>
+                                                {{ if body }}<p>{{ body | sanitize:0 | nl2br }}</p>{{ /if }}
+                                                {{ files }}<a href="{{ url }}" rel="nofollow">{{ filename | sanitize:0 }}</a>{{ /files }}
+                                            </li>
+                                        {{ /submissions }}
+                                    </ul>
+                                {{ /if }}
                             </li>
                         {{ /tasks }}
                     </ul>

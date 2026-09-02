@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.0 — 2026-09-04
+
+What the client hands back.
+
+### Added
+
+- `client_room_task_submissions` and `client_room_task_submission_files`, one migration with a
+  `down()`. A submission carries text, files, or both — never neither.
+- **A submission is never edited.** A second attempt is a second submission, so the coach can see
+  there was a first one and what changed between them.
+- `ClientRooms::submitTask()`, `removeSubmission()`, `submissionDownloadUrl()`, and the event
+  `ClientRoomTaskSubmitted`. Handing in is the client's claim and ticking is the coach's; the two
+  are separate moments and separate events.
+- The client's own submissions come back through `{{ client_room }}`: each task gains `submitted`,
+  `submission_count` and `submissions` (`body`, `submitted_at`, `files` with signed URLs).
+- Control Panel: submissions sit indented under the task they answer, with the files downloadable
+  through a CP route rather than an expiring link, and a delete that takes the files with it.
+- `client_room_tasks.meta`, in its own migration — a place for a task to remember the id it was
+  imported with, so an import can run twice without making duplicates.
+
+### Notes
+
+- **Submission files are a separate table from `client_room_files`.** The two look alike and are
+  not: a room document has a `visible_to_client` switch the coach operates, a submission file is
+  the client's own and has none. Two tables means no query has to remember a filter to keep the
+  coach's document list free of the client's uploads.
+- Deleting a task deletes its submissions **and their assets**. The database cascade alone would
+  take the rows and leave the files orphaned in the container; a model hook removes them properly.
+  That hook does not fire on a mass delete (`query()->delete()`).
+- A submission on a `draft` task does not reach the client, because the task does not.
+
 ## 0.2.0 — 2026-09-03
 
 A task can now carry the work, and the coach decides when the client sees it.

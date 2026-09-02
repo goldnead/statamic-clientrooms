@@ -270,6 +270,15 @@ function saveEdit() {
 
 const deletingTask = ref(null);
 
+const deletingSubmission = ref(null);
+
+function removeSubmission() {
+    const submission = deletingSubmission.value;
+    deletingSubmission.value = null;
+
+    if (submission) send('delete', submission.delete_url);
+}
+
 function removeTask() {
     const task = deletingTask.value;
     deletingTask.value = null;
@@ -458,6 +467,33 @@ function saveNotes() {
                                                     :color="statusColor(task.workflow_status)"
                                                     :text="task.status_label"
                                                 />
+                                            </div>
+
+                                            <!-- What came back, indented under the task it
+                                                 answers: a submission on its own is not a
+                                                 thing anybody goes looking for. -->
+                                            <div v-if="task.submissions && task.submissions.length" class="mt-2 space-y-2 border-s-2 border-content-border ps-3">
+                                                <div v-for="submission in task.submissions" :key="submission.id">
+                                                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        <span>{{ t.submission_handed_in }} · {{ submission.submitted_human }}</span>
+                                                        <Button
+                                                            v-if="canEdit"
+                                                            icon="trash"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            :aria-label="t.delete"
+                                                            @click="deletingSubmission = submission"
+                                                        />
+                                                    </div>
+                                                    <p v-if="submission.body" class="mt-0.5 text-xs whitespace-pre-line text-gray-900 dark:text-gray-100">{{ submission.body }}</p>
+                                                    <ul v-if="submission.files.length" class="mt-1 space-y-0.5">
+                                                        <li v-for="file in submission.files" :key="file.id" class="flex items-center gap-2 text-xs">
+                                                            <a :href="file.download_url" class="truncate hover:underline">{{ file.filename }}</a>
+                                                            <span v-if="file.size_human" class="text-gray-500 dark:text-gray-400">{{ file.size_human }}</span>
+                                                            <Badge v-if="file.missing" size="sm" color="red" :text="t.submission_file_missing" />
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -745,6 +781,16 @@ function saveNotes() {
             :button-text="t.action_close"
             @update:open="confirmClose = $event"
             @confirm="closeRoom"
+        />
+
+        <ConfirmationModal
+            :open="deletingSubmission !== null"
+            :title="t.submission_delete_title"
+            :body-text="t.submission_delete_body"
+            :button-text="t.delete"
+            danger
+            @update:open="deletingSubmission = $event ? deletingSubmission : null"
+            @confirm="removeSubmission"
         />
 
         <ConfirmationModal

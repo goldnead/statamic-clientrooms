@@ -117,6 +117,14 @@ return [
     'task_edit' => 'Bearbeiten',
     'task_publish' => 'Sichtbar machen',
     'task_unpublish' => 'Zurück in den Entwurf',
+    'panel_submissions' => 'Abgaben',
+    'submission_none' => 'Noch nichts abgegeben.',
+    'submission_count' => ':count abgegeben',
+    'submission_handed_in' => 'Abgegeben',
+    'submission_delete_title' => 'Diese Abgabe entfernen?',
+    'submission_delete_body' => 'Die Abgabe und ihre Dateien werden gelöscht. Das lässt sich nicht rückgängig machen.',
+    'submission_file_missing' => 'Datei fehlt',
+    'submission_deleted' => 'Abgabe entfernt.',
     'tasks_draft_count' => ':count im Entwurf',
 
     // Art einer Aufgabe. Frei erweiterbar über die Konfiguration; ein Wert ohne
@@ -167,6 +175,7 @@ return [
     'room_tasks' => 'Deine Aufgaben',
     'room_tasks_none' => 'Nichts offen.',
     'room_due' => 'bis',
+    'room_submitted' => 'Abgegeben am',
     'room_files' => 'Unterlagen',
     'room_files_none' => 'Noch nichts geteilt.',
 ];

@@ -6,18 +6,23 @@ use DateTimeInterface;
 use Goldnead\ClientRooms\Events\ClientRoomClosed;
 use Goldnead\ClientRooms\Events\ClientRoomOpened;
 use Goldnead\ClientRooms\Events\ClientRoomTaskCompleted;
+use Goldnead\ClientRooms\Events\ClientRoomTaskSubmitted;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
 use Goldnead\ClientRooms\Models\ClientRoomTask;
+use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
+use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Goldnead\ClientRooms\Support\Brands;
 use Goldnead\ClientRooms\Support\Contacts;
 use Goldnead\ClientRooms\Support\Emails;
 use Goldnead\ClientRooms\Support\Files\RoomFiles;
+use Goldnead\ClientRooms\Support\Files\SubmissionFiles;
 use Goldnead\ClientRooms\Support\Owners;
 use Goldnead\ClientRooms\Support\Timeline\RoomTimeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Contracts\Auth\User as UserContract;
@@ -35,6 +40,7 @@ class ClientRoomsManager
     public function __construct(
         protected RoomFiles $files,
         protected RoomTimeline $timeline,
+        protected SubmissionFiles $submissionFiles,
     ) {}
 
     /**
@@ -235,6 +241,77 @@ class ClientRoomsManager
         return $task;
     }
 
+    /**
+     * Record what the client handed back.
+     *
+     * Never an update: a second attempt is a second submission, so the coach
+     * can see there was a first and what changed. Text, files, or both — but
+     * not neither, because an empty submission says nothing and would still
+     * light up the screen as if work had arrived.
+     *
+     * The files are written after the row exists, because each is stored under
+     * the submission's own id. A file that will not store takes the whole
+     * submission down with it rather than leaving one that claims an
+     * attachment it does not have.
+     *
+     * @param  list<UploadedFile>  $files
+     * @param  array<string, mixed>  $attributes  `submitted_at`, `meta`
+     */
+    public function submitTask(ClientRoomTask|int $task, ?string $body = null, array $files = [], ?string $submittedBy = null, array $attributes = []): ClientRoomTaskSubmission
+    {
+        $task = $this->task($task);
+
+        $body = $body !== null ? trim($body) : null;
+        $body = ($body === '') ? null : $body;
+
+        if ($body === null && $files === []) {
+            throw new InvalidArgumentException('statamic-clientrooms: a submission needs text or a file.');
+        }
+
+        $room = $this->roomOf($task);
+
+        return DB::transaction(function () use ($task, $room, $body, $files, $submittedBy, $attributes): ClientRoomTaskSubmission {
+            $submission = $task->submissions()->create([
+                'body' => $body,
+                'submitted_by' => Owners::resolveId($submittedBy) ?? $submittedBy,
+                'submitted_at' => $attributes['submitted_at'] ?? now(),
+                'meta' => $attributes['meta'] ?? null,
+            ]);
+
+            foreach ($files as $file) {
+                $this->submissionFiles->attach($room, $submission, $file);
+            }
+
+            $room->touchActivity();
+
+            ClientRoomTaskSubmitted::dispatch($room, $task, $submission);
+
+            return $submission->load('files');
+        });
+    }
+
+    /** Take a submission back out, with the files it brought. */
+    public function removeSubmission(ClientRoomTaskSubmission|int $submission): void
+    {
+        $submission = $submission instanceof ClientRoomTaskSubmission
+            ? $submission
+            : ClientRoomTaskSubmission::query()->findOrFail($submission);
+
+        // The files first and one at a time: the cascade would take the rows
+        // but leave the assets behind as orphans on the disk.
+        foreach ($submission->files as $file) {
+            $this->submissionFiles->remove($file);
+        }
+
+        $submission->delete();
+    }
+
+    /** A link the holder may follow for a while. */
+    public function submissionDownloadUrl(ClientRoomTaskSubmissionFile $file): string
+    {
+        return $this->submissionFiles->signedUrl($file);
+    }
+
     /** Show a task to the client, or take it back to the desk. */
     public function publishTask(ClientRoomTask|int $task, bool $published = true): ClientRoomTask
     {
@@ -330,6 +407,14 @@ class ClientRoomsManager
         // the safe side" rather than a write that blows up at the driver.
         if (array_key_exists('published_status', $fields) && $fields['published_status'] === null) {
             $fields['published_status'] = ClientRoomTask::PUBLISHED_DRAFT;
+        }
+
+        // Provenance, not content: an array goes in as it comes, anything else
+        // is not something this column can hold.
+        if (array_key_exists('meta', $attributes)) {
+            $meta = $attributes['meta'];
+
+            $fields['meta'] = is_array($meta) ? $meta : null;
         }
 
         if (array_key_exists('estimated_minutes', $attributes)) {

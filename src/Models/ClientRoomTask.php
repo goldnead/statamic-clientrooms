@@ -2,9 +2,11 @@
 
 namespace Goldnead\ClientRooms\Models;
 
+use Goldnead\ClientRooms\ClientRoomsManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -30,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property string $published_status
  * @property string|null $priority
  * @property int|null $estimated_minutes
+ * @property array<string, mixed>|null $meta
  * @property Carbon|null $due_at
  * @property Carbon|null $done_at
  * @property string|null $done_by
@@ -98,10 +101,32 @@ class ClientRoomTask extends Model
         'published_status',
         'priority',
         'estimated_minutes',
+        'meta',
         'due_at',
         'created_by',
         'position',
     ];
+
+    /**
+     * A task taken away takes its submissions with it — and, crucially, the
+     * files on disk. The database cascade removes the rows and would leave the
+     * assets sitting in the container with nothing pointing at them, which is
+     * a client's own recording left behind after the reason for keeping it is
+     * gone.
+     *
+     * Model events do not fire on a mass delete (`query()->delete()`); a caller
+     * doing that is responsible for the assets itself.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (self $task): void {
+            $rooms = app(ClientRoomsManager::class);
+
+            foreach ($task->submissions()->with('files')->get() as $submission) {
+                $rooms->removeSubmission($submission);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -110,6 +135,7 @@ class ClientRoomTask extends Model
             'done_at' => 'datetime',
             'position' => 'integer',
             'estimated_minutes' => 'integer',
+            'meta' => 'array',
         ];
     }
 
@@ -117,6 +143,22 @@ class ClientRoomTask extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(ClientRoom::class, 'room_id');
+    }
+
+    /**
+     * What the client handed back, oldest first, so the last one read is the
+     * current attempt.
+     *
+     * @return HasMany<ClientRoomTaskSubmission, $this>
+     */
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(ClientRoomTaskSubmission::class, 'task_id')->orderBy('id');
+    }
+
+    public function isSubmitted(): bool
+    {
+        return $this->submissions()->exists();
     }
 
     public function isDone(): bool
