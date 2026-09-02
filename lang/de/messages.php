@@ -121,6 +121,7 @@ return [
     'submission_delete_title' => 'Diese Abgabe entfernen?',
     'submission_delete_body' => 'Die Abgabe und ihre Dateien werden gelöscht. Das lässt sich nicht rückgängig machen.',
     'submission_file_missing' => 'Datei fehlt',
+    'submission_empty' => 'Schreib etwas dazu oder häng eine Datei an.',
     'submission_delete_failed' => 'Die Abgabe konnte nicht vollständig entfernt werden. Bitte im Container nachsehen.',
     'submission_deleted' => 'Abgabe entfernt.',
     'tasks_draft_count' => ':count im Entwurf',

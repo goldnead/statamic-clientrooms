@@ -174,6 +174,29 @@ that is not visible says so next to its title.
 Permissions: `view client rooms` (listing, detail, downloads) and `edit client rooms` (everything that
 writes). Every write route is guarded twice: `can:` middleware and the Gate in the controller.
 
+## The members area as JSON
+
+For a front end that renders itself rather than through Antlers. Turn it off with
+`'member_api' => false` if your site uses the tag.
+
+```
+GET   /!/statamic-clientrooms/me                          the room, its published tasks, its files
+PATCH /!/statamic-clientrooms/me/tasks/{task}             {"done": true|false}
+POST  /!/statamic-clientrooms/me/tasks/{task}/submissions {"body": "...", "files[]": …}
+```
+
+Behind `auth`. **No route takes a room id** — every one finds the room from the signed-in user, so
+there is no parameter anybody could point at somebody else's room. A task id is checked against that
+room and against `published_status` first: a task the coach is still writing answers 404, the same
+as one that never existed. Submissions are throttled to 20 a minute and capped by
+`member_upload_max_kb`; the accepted extensions are the same `allowed_extensions` as everywhere else.
+
+The routes always answer JSON, `Accept` header or not, so a `FormData` post that fails validation
+comes back as a 422 with field errors rather than a redirect that looks like success.
+
+Values are **not** HTML-escaped here, unlike in the tag: JSON is data, and whoever renders it escapes
+it. The tag escapes because Antlers prints straight into a document.
+
 ## Multi-brand
 
 With `goldnead/statamic-brand-context` installed, rooms carry `brand_id` and read through its global

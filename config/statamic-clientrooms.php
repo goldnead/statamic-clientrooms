@@ -96,6 +96,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | The members area as JSON
+    |--------------------------------------------------------------------------
+    |
+    | Routes under `/!/statamic-clientrooms/me` that hand a signed-in client
+    | their own room as JSON: read it, tick a task, hand one back. For a front
+    | end that renders itself. A site that uses the `{{ client_room }}` tag
+    | needs none of it and can turn it off.
+    |
+    | Every action finds the room from the signed-in user; none of them takes a
+    | room id, so there is no parameter to point at somebody else.
+    |
+    | `member_upload_max_kb` caps one uploaded file. The default is generous
+    | because these are usually recordings; PHP's own `upload_max_filesize`
+    | still has the last word.
+    |
+    */
+
+    'member_api' => true,
+
+    'member_upload_max_kb' => 51200,
+
+    /*
+    |--------------------------------------------------------------------------
     | Signed download links
     |--------------------------------------------------------------------------
     |

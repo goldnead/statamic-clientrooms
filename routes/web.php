@@ -1,7 +1,9 @@
 <?php
 
 use Goldnead\ClientRooms\Http\Controllers\DownloadController;
+use Goldnead\ClientRooms\Http\Controllers\MemberController;
 use Goldnead\ClientRooms\Http\Controllers\SubmissionDownloadController;
+use Goldnead\ClientRooms\Http\Middleware\AlwaysJson;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,3 +27,29 @@ Route::get('/!/statamic-clientrooms/submissions/{file}', SubmissionDownloadContr
     ->middleware('signed')
     ->whereNumber('file')
     ->name('statamic-clientrooms.submission-download');
+
+/*
+| The members area, as JSON, for a front end that is not Antlers. Off unless
+| `member_api` says otherwise, because a site that renders its room with the
+| tag has no use for it and should not answer on routes it never asked for.
+|
+| No room id anywhere: every action finds the room from the signed-in user, so
+| there is no parameter to change into somebody else's. `auth` rather than a
+| signature — this is a person, not a link.
+*/
+if (config('statamic-clientrooms.member_api', true)) {
+    Route::middleware(['auth', AlwaysJson::class])->prefix('/!/statamic-clientrooms/me')->name('statamic-clientrooms.me.')->group(function (): void {
+        Route::get('/', [MemberController::class, 'show'])->name('show');
+
+        Route::patch('tasks/{task}', [MemberController::class, 'update'])
+            ->name('tasks.update')
+            ->whereNumber('task');
+
+        // Throttled: this one accepts files, and a members area is as public
+        // as its weakest password.
+        Route::post('tasks/{task}/submissions', [MemberController::class, 'submit'])
+            ->middleware('throttle:20,1')
+            ->name('tasks.submit')
+            ->whereNumber('task');
+    });
+}

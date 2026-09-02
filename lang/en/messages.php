@@ -121,6 +121,7 @@ return [
     'submission_delete_title' => 'Remove this submission?',
     'submission_delete_body' => 'The submission and its files are deleted. This cannot be undone.',
     'submission_file_missing' => 'File missing',
+    'submission_empty' => 'Write something or attach a file.',
     'submission_delete_failed' => 'The submission could not be fully removed. Please check the container.',
     'submission_deleted' => 'Submission removed.',
     'tasks_draft_count' => ':count in draft',

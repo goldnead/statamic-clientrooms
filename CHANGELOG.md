@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0 — 2026-09-02
+
+A members area that is not Antlers.
+
+### Added
+
+- Three authenticated JSON routes under `/!/statamic-clientrooms/me`: read your room, tick a task,
+  hand one back with text and files. `member_api` turns them off for a site that renders with the
+  tag; `member_upload_max_kb` caps one file.
+- Uploads are throttled (20 a minute) and checked against the same `allowed_extensions` as the
+  Control Panel.
+- The routes always answer JSON, so a `FormData` post that fails validation returns 422 with field
+  errors instead of a redirect that looks like it worked.
+
+### Notes
+
+- **No route takes a room id.** Each finds the room from the signed-in user, so there is no
+  parameter to change into somebody else's room — the ownership check cannot be forgotten because
+  there is nothing to check against.
+- A task on `draft` cannot be addressed either, not just not listed: guessing its id answers 404.
+- Values are not HTML-escaped here, unlike in the tag. JSON is data; the tag prints into a document.
+
+
 ## 0.3.0 — 2026-09-02
 
 What the client hands back.
