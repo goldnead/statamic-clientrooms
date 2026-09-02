@@ -181,7 +181,7 @@ return [
     // Sitzungen — Control Panel
     'panel_sessions' => 'Sitzungen',
     'sessions_empty' => 'Noch keine Sitzungen erfasst.',
-    'sessions_count' => ':count Sitzungen',
+    'sessions_count' => '{1} :count Sitzung|[2,*] :count Sitzungen',
     'sessions_draft_count' => ':count nicht sichtbar',
     'sessions_footnote' => 'Sitzungen entstehen dort, wo sie stattfinden, und werden hierher durchgeschrieben. Hier entscheidest du, was der Klient davon sieht.',
     'session_minutes_unit' => 'Min.',

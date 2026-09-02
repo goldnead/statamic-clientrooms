@@ -15,6 +15,7 @@ use Goldnead\ClientRooms\Support\Brands;
 use Goldnead\ClientRooms\Support\Owners;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Statamic\Http\Controllers\CP\CpController;
 use Statamic\Statamic;
@@ -63,7 +64,12 @@ class RoomsController extends CpController
             // Every sitting, draft and archived included. This is the desk, not
             // the client's room: the screen's whole job is to show what the
             // client cannot see yet and let somebody decide about it.
-            'sessions' => $room->sessions()->get()->map(fn (ClientRoomSession $session) => $this->presentSession($session))->values()->all(),
+            'sessions' => ($sessions = $room->sessions()->get())->map(fn (ClientRoomSession $session) => $this->presentSession($session))->values()->all(),
+            // Finished here rather than assembled in the screen, because a
+            // count has to be declined and neither language does that with a
+            // colon: ":count Sitzungen" reads "1 Sitzungen", and ":count
+            // sessions" reads "1 sessions".
+            'sessionsSubheading' => $this->sessionsSubheading($sessions),
             'timeline' => $timeline['entries'],
             'timelineMode' => $timeline['mode'],
             'timelineTotal' => $timeline['total'],
@@ -387,6 +393,31 @@ class RoomsController extends CpController
             'update_url' => cp_route('client-rooms.sessions.update', [$session->room_id, $session->id]),
             'delete_url' => cp_route('client-rooms.sessions.destroy', [$session->room_id, $session->id]),
         ];
+    }
+
+    /**
+     * "4 Sitzungen · 1 nicht sichtbar", or nothing at all.
+     *
+     * The total first and the exception after it, the way the tasks panel says
+     * "4 offen · 1 im Entwurf" — the exception on its own left the reader
+     * without the number they came for.
+     *
+     * @param  Collection<int, ClientRoomSession>  $sessions
+     */
+    protected function sessionsSubheading(Collection $sessions): ?string
+    {
+        if ($sessions->isEmpty()) {
+            return null;
+        }
+
+        $total = trans_choice('statamic-clientrooms::messages.sessions_count', $sessions->count(), ['count' => $sessions->count()]);
+        $drafts = $sessions->filter(fn (ClientRoomSession $session) => ! $session->isPublished())->count();
+
+        if ($drafts === 0) {
+            return $total;
+        }
+
+        return $total.' · '.__('statamic-clientrooms::messages.sessions_draft_count', ['count' => $drafts]);
     }
 
     protected function sessionStatusLabel(string $status): string

@@ -181,7 +181,7 @@ return [
     // Sessions — Control Panel
     'panel_sessions' => 'Sessions',
     'sessions_empty' => 'No sessions recorded yet.',
-    'sessions_count' => ':count sessions',
+    'sessions_count' => '{1} :count session|[2,*] :count sessions',
     'sessions_draft_count' => ':count not visible',
     'sessions_footnote' => 'Sessions are recorded where they take place and written through to here. This is where you decide what the client sees of them.',
     'session_minutes_unit' => 'min',

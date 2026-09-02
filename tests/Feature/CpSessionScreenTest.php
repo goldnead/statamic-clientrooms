@@ -301,6 +301,50 @@ class CpSessionScreenTest extends TestCase
     }
 
     #[Test]
+    public function one_session_is_not_called_sessions(): void
+    {
+        $room = $this->room();
+        $user = $this->superUser();
+
+        // Ohne Raum-Inhalt keine Unterzeile: ein leeres Panel sagt schon
+        // "noch keine Sitzungen erfasst".
+        $this->actingAs($user)->get('/cp/client-rooms/'.$room->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('sessionsSubheading', null));
+
+        ClientRooms::importSession($room, 'vf-0001', [
+            'title' => 'Sitzung',
+            'published_status' => ClientRoomSession::PUBLISHED_PUBLISHED,
+        ]);
+
+        $this->actingAs($user)->get('/cp/client-rooms/'.$room->id)
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $sub = $page->toArray()['props']['sessionsSubheading'];
+
+                // ":count sessions" ergäbe "1 sessions", ":count Sitzungen"
+                // ergäbe "1 Sitzungen". Die Zahl muss gebeugt werden, und das
+                // kann nur der Server. Die Suite läuft auf Englisch.
+                $this->assertStringContainsString('1 session', $sub);
+                $this->assertStringNotContainsString('sessions', $sub);
+                $this->assertStringNotContainsString(':count', $sub);
+            });
+
+        // Zwei Sitzungen, davon eine im Entwurf: Gesamtzahl zuerst, Ausnahme
+        // dahinter, wie im Aufgaben-Panel nebenan.
+        ClientRooms::importSession($room, 'vf-0002', ['title' => 'Entwurf']);
+
+        $this->actingAs($user)->get('/cp/client-rooms/'.$room->id)
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $sub = $page->toArray()['props']['sessionsSubheading'];
+
+                $this->assertStringContainsString('2 sessions', $sub);
+                $this->assertStringContainsString('1 not visible', $sub);
+            });
+    }
+
+    #[Test]
     public function the_status_vocabulary_of_the_cockpit_has_a_word_here(): void
     {
         $room = $this->room();

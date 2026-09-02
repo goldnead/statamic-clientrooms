@@ -18,6 +18,7 @@ const props = defineProps({
     tasks: { type: Array, default: () => [] },
     files: { type: Array, default: () => [] },
     sessions: { type: Array, default: () => [] },
+    sessionsSubheading: { type: String, default: null },
     timeline: { type: Array, default: () => [] },
     timelineMode: { type: String, default: 'fallback' },
     timelineTotal: { type: Number, default: 0 },
@@ -364,17 +365,9 @@ const sessionNote = ref({});
 const sessionErrors = ref({});
 const deletingSession = ref(null);
 
-// "4 sittings · 1 not visible", the way the tasks panel says "4 open · 1
-// draft": the total first, the exception after it. The exception alone left
-// the reader without the number they came for.
-const sessionSubheading = computed(() => {
-    if (props.sessions.length === 0) return null;
-
-    const total = props.t.sessions_count.replace(':count', props.sessions.length);
-    const drafts = props.sessions.filter((s) => !s.published).length;
-
-    return drafts === 0 ? total : total + ' · ' + props.t.sessions_draft_count.replace(':count', drafts);
-});
+// The subheading arrives finished from the server, unlike the tasks panel's,
+// which this screen assembles. A count has to be declined and no language
+// does that with a colon: ":count Sitzungen" reads "1 Sitzungen".
 
 function toggleSession(session) {
     openSession.value = openSession.value === session.id ? null : session.id;
@@ -740,7 +733,7 @@ function saveNotes() {
                      Every sitting is listed, drafts included — this is the
                      coach's desk, and its job is to show what the client
                      cannot see yet. -->
-                <Panel :heading="t.panel_sessions" :subheading="sessionSubheading">
+                <Panel :heading="t.panel_sessions" :subheading="sessionsSubheading">
                     <Card>
                         <div v-if="sessions.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                             {{ t.sessions_empty }}
