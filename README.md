@@ -185,14 +185,21 @@ PATCH /!/statamic-clientrooms/me/tasks/{task}             {"done": true|false}
 POST  /!/statamic-clientrooms/me/tasks/{task}/submissions {"body": "...", "files[]": …}
 ```
 
-Behind `auth`. **No route takes a room id** — every one finds the room from the signed-in user, so
+Signed in, or 401. **No route takes a room id** — every one finds the room from the signed-in user, so
 there is no parameter anybody could point at somebody else's room. A task id is checked against that
 room and against `published_status` first: a task the coach is still writing answers 404, the same
 as one that never existed. Submissions are throttled to 20 a minute and capped by
 `member_upload_max_kb`; the accepted extensions are the same `allowed_extensions` as everywhere else.
 
 The routes always answer JSON, `Accept` header or not, so a `FormData` post that fails validation
-comes back as a 422 with field errors rather than a redirect that looks like success.
+comes back as a 422 with field errors rather than a redirect that looks like success. The signed-out
+case is answered by the controller as a 401 rather than by the `auth` middleware, which would decide
+between JSON and a login redirect from that same header — and which Laravel's middleware priority
+puts ahead of anything that could set it.
+
+These routes sit in the `web` group, so **CSRF applies**. A front end needs to send the token: read
+the `XSRF-TOKEN` cookie and send it back as `X-XSRF-TOKEN` (axios does this on its own), or put a
+`_token` field in the `FormData`.
 
 Values are **not** HTML-escaped here, unlike in the tag: JSON is data, and whoever renders it escapes
 it. The tag escapes because Antlers prints straight into a document.

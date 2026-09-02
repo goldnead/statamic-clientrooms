@@ -34,11 +34,17 @@ Route::get('/!/statamic-clientrooms/submissions/{file}', SubmissionDownloadContr
 | tag has no use for it and should not answer on routes it never asked for.
 |
 | No room id anywhere: every action finds the room from the signed-in user, so
-| there is no parameter to change into somebody else's. `auth` rather than a
-| signature — this is a person, not a link.
+| there is no parameter to change into somebody else's.
+|
+| The signed-out case is answered by the controller, not by the `auth`
+| middleware. `auth` chooses between a JSON 401 and a redirect to a `login`
+| route by reading the Accept header as it throws, and Laravel's middleware
+| priority hoists it ahead of anything that would rewrite that header — so on
+| a host without a `login` route it raises "Route [login] not defined" instead
+| of answering. A person, not a link: 401, in JSON, every time.
 */
 if (config('statamic-clientrooms.member_api', true)) {
-    Route::middleware(['auth', AlwaysJson::class])->prefix('/!/statamic-clientrooms/me')->name('statamic-clientrooms.me.')->group(function (): void {
+    Route::middleware(AlwaysJson::class)->prefix('/!/statamic-clientrooms/me')->name('statamic-clientrooms.me.')->group(function (): void {
         Route::get('/', [MemberController::class, 'show'])->name('show');
 
         Route::patch('tasks/{task}', [MemberController::class, 'update'])

@@ -37,6 +37,21 @@ class MemberApiTest extends TestCase
     }
 
     #[Test]
+    public function a_signed_out_caller_gets_json_even_without_asking_for_it(): void
+    {
+        ClientRooms::open('maria@example.com');
+
+        // `getJson()` would set the Accept header itself and prove nothing:
+        // `auth` reads that header as it throws, and decides between a JSON
+        // 401 and a redirect to a login page. A `fetch()` with a FormData
+        // sends no such header, so this asks the way that front end does.
+        $response = $this->call('GET', $this->base);
+
+        $response->assertUnauthorized();
+        $this->assertStringContainsString('application/json', (string) $response->headers->get('Content-Type'));
+    }
+
+    #[Test]
     public function a_user_without_a_room_gets_a_404_and_not_an_empty_room(): void
     {
         ClientRooms::open('maria@example.com');
@@ -154,6 +169,34 @@ class MemberApiTest extends TestCase
 
         $this->assertFalse($other->refresh()->isDone());
         $this->assertSame(0, $other->submissions()->count());
+    }
+
+    #[Test]
+    public function one_address_with_a_room_in_two_brands_gets_the_current_brands_room(): void
+    {
+        $manager = $this->fakeBrandContext(current: 1);
+
+        $first = ClientRooms::open('maria@example.com', null, ['brand_id' => 1]);
+        $second = ClientRooms::open('maria@example.com', null, ['brand_id' => 2]);
+
+        ClientRooms::addTask($first, 'Nordlicht');
+        ClientRooms::addTask($second, 'Chorwerkstatt');
+
+        $this->assertNotSame($first->id, $second->id, 'The unique key is per brand; two rooms were expected.');
+
+        $client = $this->client();
+
+        $this->actingAs($client)->getJson($this->base)
+            ->assertOk()
+            ->assertJsonCount(1, 'tasks')
+            ->assertJsonPath('tasks.0.title', 'Nordlicht');
+
+        $manager->setCurrent(2);
+
+        $this->actingAs($client)->getJson($this->base)
+            ->assertOk()
+            ->assertJsonCount(1, 'tasks')
+            ->assertJsonPath('tasks.0.title', 'Chorwerkstatt');
     }
 
     // ── Ticking ─────────────────────────────────────────────────────────────

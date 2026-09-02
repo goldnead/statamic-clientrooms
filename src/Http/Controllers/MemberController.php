@@ -71,8 +71,10 @@ class MemberController extends Controller
 
         $data = $request->validate(['done' => ['required', 'boolean']]);
 
-        // `Owners::resolveId()` would refuse this: it only knows staff. The
-        // client is not staff, and the id recorded here is theirs.
+        // Their own id, recorded as theirs. The manager resolves it and keeps
+        // it either way; a client is a Statamic user like any other, and the
+        // point here is only that the tick is attributed to the person who
+        // made it rather than to the coach.
         $by = (string) User::current()?->getAuthIdentifier();
 
         if ($data['done']) {
@@ -131,7 +133,16 @@ class MemberController extends Controller
      */
     protected function room(): ClientRoom
     {
-        $room = $this->rooms->forUser(User::current());
+        $user = User::current();
+
+        // 401 before 404, and said here rather than by the `auth` middleware:
+        // that one decides between JSON and a redirect from the Accept header
+        // as it throws, and Laravel's middleware priority puts it ahead of
+        // anything that could set that header. A host without a `login` route
+        // then gets an exception instead of an answer.
+        abort_if($user === null, 401);
+
+        $room = $this->rooms->forUser($user);
 
         abort_unless($room !== null && $room->isOpen(), 404);
 

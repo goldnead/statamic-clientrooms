@@ -345,7 +345,10 @@ class ClientRoomsManager
 
         $task->forceFill([
             'done_at' => now(),
-            'done_by' => Owners::resolveId($doneBy),
+            // `?? $doneBy` like `submitTask()`: `resolveId()` swallows any
+            // throwable and answers null, and a lookup that stumbles must not
+            // quietly turn "she ticked it" into "nobody ticked it".
+            'done_by' => Owners::resolveId($doneBy) ?? $doneBy,
             'status' => ClientRoomTask::STATUS_COMPLETED,
         ])->save();
 

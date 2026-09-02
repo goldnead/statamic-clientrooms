@@ -21,6 +21,11 @@ A members area that is not Antlers.
   there is nothing to check against.
 - A task on `draft` cannot be addressed either, not just not listed: guessing its id answers 404.
 - Values are not HTML-escaped here, unlike in the tag. JSON is data; the tag prints into a document.
+- The signed-out answer is a 401 from the controller, not from the `auth` middleware. `auth` picks
+  between JSON and a redirect by reading the Accept header as it throws, and middleware priority
+  hoists it ahead of anything that could set that header — on a host without a `login` route it
+  raises an exception instead of answering.
+- CSRF applies (these are `web` routes). The README says what a front end has to send.
 
 
 ## 0.3.0 — 2026-09-02
