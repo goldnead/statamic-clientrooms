@@ -437,20 +437,36 @@ function removeSession() {
 // `has_*` flags made the second one claim the first: a sitting imported with
 // `has_transcript` and no URL said "Transkript (Link abgelaufen)", and a coach
 // who reads that stops asking for a link that was never issued.
+// Zwei Zeichen, eine Zeile, nie ein Umbruch.
+//
+// Vorher standen die Zustaende ausgeschrieben in der Zelle, und
+// "Aufnahme (Link abgelaufen) · Transkript (kein Link)" brach mitten im Satz
+// ueber drei Zeilen. Das machte die unwichtigste Spalte zur hoechsten und die
+// aelteste Sitzung zur auffaelligsten Zeile.
+//
+// Jetzt traegt das Zeichen die Sache und der Tooltip den Zustand: da und
+// anklickbar, da aber ohne gueltigen Link, oder gar nicht da. Ausgeschrieben
+// steht es im Stack, wo Platz dafuer ist.
 function sessionMedia(session) {
-    const live = [];
-    const expired = [];
-    const linkless = [];
+    const out = [];
 
-    if (session.recording_url) live.push({ key: 'rec', label: props.t.session_recording, url: session.recording_url });
-    else if (session.recording_expired) expired.push(props.t.session_recording);
-    else if (session.has_recording) linkless.push(props.t.session_recording);
+    if (session.recording_url) {
+        out.push({ key: 'rec', icon: 'computer-voice-mail-microphone', url: session.recording_url, title: props.t.session_recording });
+    } else if (session.recording_expired) {
+        out.push({ key: 'rec', icon: 'computer-voice-mail-microphone', url: null, title: props.t.session_recording + ' ' + props.t.session_link_expired });
+    } else if (session.has_recording) {
+        out.push({ key: 'rec', icon: 'computer-voice-mail-microphone', url: null, title: props.t.session_recording + ' ' + props.t.session_link_none });
+    }
 
-    if (session.transcript_url) live.push({ key: 'tr', label: props.t.session_transcript, url: session.transcript_url });
-    else if (session.transcript_expired) expired.push(props.t.session_transcript);
-    else if (session.has_transcript) linkless.push(props.t.session_transcript);
+    if (session.transcript_url) {
+        out.push({ key: 'tr', icon: 'file-content-list', url: session.transcript_url, title: props.t.session_transcript });
+    } else if (session.transcript_expired) {
+        out.push({ key: 'tr', icon: 'file-content-list', url: null, title: props.t.session_transcript + ' ' + props.t.session_link_expired });
+    } else if (session.has_transcript) {
+        out.push({ key: 'tr', icon: 'file-content-list', url: null, title: props.t.session_transcript + ' ' + props.t.session_link_none });
+    }
 
-    return { live, expired: expired.join(' · '), linkless: linkless.join(' · ') };
+    return out;
 }
 
 const sessionStatusColor = (status) => ({
@@ -758,17 +774,21 @@ function saveNotes() {
                         <!-- Core's own table, not a hand-rolled list. A sitting
                              is a record with a date, a length and a state, and
                              the Control Panel has one way of showing records. -->
+                        <!-- `ps-4` auf der ersten und `pe-4` auf der letzten
+                             Spalte: die Karte traegt hier kein Polster, damit
+                             die Trennlinien durchlaufen, und ohne das klebte
+                             das Datum an der Kante. -->
                         <Table v-else>
                             <TableColumns>
-                                <TableColumn class="whitespace-nowrap">{{ t.session_column_when }}</TableColumn>
+                                <TableColumn class="ps-4 whitespace-nowrap">{{ t.session_column_when }}</TableColumn>
                                 <TableColumn>{{ t.session_column_session }}</TableColumn>
-                                <TableColumn>{{ t.session_column_media }}</TableColumn>
+                                <TableColumn class="whitespace-nowrap">{{ t.session_column_media }}</TableColumn>
                                 <TableColumn v-if="canEdit" class="whitespace-nowrap">{{ t.session_column_visible }}</TableColumn>
-                                <TableColumn v-if="canEdit"><span class="sr-only">{{ t.delete }}</span></TableColumn>
+                                <TableColumn v-if="canEdit" class="pe-4"><span class="sr-only">{{ t.delete }}</span></TableColumn>
                             </TableColumns>
                             <TableRows>
                                 <TableRow v-for="session in sessions" :key="session.id">
-                                    <TableCell class="tabular-nums whitespace-nowrap">
+                                    <TableCell class="ps-4 align-top tabular-nums whitespace-nowrap">
                                         <button
                                             type="button"
                                             class="text-start hover:underline"
@@ -780,19 +800,24 @@ function saveNotes() {
                                         </button>
                                     </TableCell>
 
-                                    <TableCell>
+                                    <TableCell class="align-top">
                                         <button type="button" class="text-start" @click="openSessionStack(session)">
                                             <span class="font-medium hover:underline">{{ session.title }}</span>
-                                            <span class="ms-2 inline-flex gap-1 align-middle">
-                                                <Badge
-                                                    v-if="session.status_label"
-                                                    size="sm"
-                                                    :color="sessionStatusColor(session.status)"
-                                                    :text="session.status_label"
-                                                />
-                                                <Badge v-if="session.draft" size="sm" color="amber" :text="t.session_draft" />
-                                                <Badge v-if="session.archived" size="sm" :text="t.session_archived" />
-                                            </span>
+                                            <!-- Kein Entwurfs-Abzeichen mehr: der
+                                                 Schalter zwei Spalten weiter sagt
+                                                 dasselbe, und die zweite Marke
+                                                 machte diese Zeile hoeher als
+                                                 alle anderen. `archived` bleibt,
+                                                 den kann der Schalter nicht
+                                                 zeigen. -->
+                                            <Badge
+                                                v-if="session.status_label"
+                                                class="ms-2 align-middle"
+                                                size="sm"
+                                                :color="sessionStatusColor(session.status)"
+                                                :text="session.status_label"
+                                            />
+                                            <Badge v-if="session.archived" class="ms-2 align-middle" size="sm" :text="t.session_archived" />
                                             <span class="block text-xs text-gray-500 dark:text-gray-400">
                                                 <span v-if="session.duration_minutes">{{ session.duration_minutes }} {{ t.session_minutes_unit }}</span>
                                                 <span v-if="session.duration_minutes && session.coach_name" aria-hidden="true"> · </span>
@@ -801,19 +826,29 @@ function saveNotes() {
                                         </button>
                                     </TableCell>
 
-                                    <!-- Darf umbrechen. Es ist die einzige Spalte
-                                         mit variabler Laenge, und ein
-                                         `nowrap` hier schob die beiden
-                                         schmalen Spalten rechts aus der Karte. -->
-                                    <TableCell class="text-xs text-gray-500 dark:text-gray-400">
-                                        <template v-for="line in sessionMedia(session).live" :key="line.key">
-                                            <a :href="line.url" target="_blank" rel="noopener" class="me-2 underline underline-offset-2">{{ line.label }}</a>
-                                        </template>
-                                        <span v-if="sessionMedia(session).expired" class="me-2 italic opacity-70">{{ sessionMedia(session).expired }} {{ t.session_link_expired }}</span>
-                                        <span v-if="sessionMedia(session).linkless" class="italic opacity-70">{{ sessionMedia(session).linkless }} {{ t.session_link_none }}</span>
+                                    <TableCell class="align-top">
+                                        <span class="flex items-center gap-2">
+                                            <template v-for="m in sessionMedia(session)" :key="m.key">
+                                                <a
+                                                    v-if="m.url"
+                                                    :href="m.url"
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    :title="m.title"
+                                                    :aria-label="m.title"
+                                                ><Icon :name="m.icon" class="size-4" /></a>
+                                                <!-- Da, aber kein gueltiger Weg
+                                                     hin. Gedimmt statt weg: die
+                                                     Aufnahme gibt es, nur der
+                                                     Link nicht mehr. -->
+                                                <span v-else :title="m.title" :aria-label="m.title" class="text-gray-400 opacity-60 dark:text-gray-500">
+                                                    <Icon :name="m.icon" class="size-4" />
+                                                </span>
+                                            </template>
+                                        </span>
                                     </TableCell>
 
-                                    <TableCell v-if="canEdit">
+                                    <TableCell v-if="canEdit" class="align-top">
                                         <Switch
                                             :model-value="session.published"
                                             size="sm"
@@ -824,7 +859,7 @@ function saveNotes() {
                                         />
                                     </TableCell>
 
-                                    <TableCell v-if="canEdit" class="text-end">
+                                    <TableCell v-if="canEdit" class="pe-4 text-end align-top">
                                         <Button
                                             icon="trash"
                                             variant="ghost"
@@ -862,6 +897,19 @@ function saveNotes() {
                         </div>
 
                         <div class="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                            <!-- In der Liste tragen zwei Zeichen die Sache. Hier
+                                 ist Platz fuer den Zustand in Worten. -->
+                            <div v-if="sessionMedia(shownSession).length" class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                                <template v-for="m in sessionMedia(shownSession)" :key="m.key">
+                                    <a v-if="m.url" :href="m.url" target="_blank" rel="noopener" class="flex items-center gap-1.5 underline underline-offset-2">
+                                        <Icon :name="m.icon" class="size-4" />{{ m.title }}
+                                    </a>
+                                    <span v-else class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                        <Icon :name="m.icon" class="size-4 opacity-60" />{{ m.title }}
+                                    </span>
+                                </template>
+                            </div>
+
                             <div v-if="shownSession.agenda">
                                 <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_agenda }}</div>
                                 <p class="mt-0.5 text-sm whitespace-pre-line">{{ shownSession.agenda }}</p>
