@@ -583,26 +583,26 @@ function saveNotes() {
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <span class="text-sm" :class="task.done ? 'line-through text-gray-500 dark:text-gray-400' : ''">{{ task.title }}</span>
                                                 <!-- Not visible to the client: said plainly, next to the title, not hidden in a panel. -->
-                                                <Badge v-if="task.draft" size="sm" color="amber" :text="t.task_draft" />
-                                                <Badge v-else-if="task.published_status === 'archived'" size="sm" :text="t.task_archived" />
-                                                <Badge v-if="task.type_label" size="sm" :text="task.type_label" />
+                                                <Badge v-if="task.draft" size="sm" color="amber" :text="t.task_draft" pill />
+                                                <Badge v-else-if="task.published_status === 'archived'" size="sm" :text="t.task_archived" pill />
+                                                <Badge v-if="task.type_label" size="sm" :text="task.type_label" pill />
                                                 <Badge
                                                     v-if="task.priority && task.priority !== 'low' && task.priority !== 'medium'"
                                                     size="sm"
                                                     :color="priorityColor(task.priority)"
                                                     :text="task.priority_label"
-                                                />
+                                                 pill />
                                             </div>
                                             <p v-if="task.description" class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ task.description }}</p>
                                             <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
                                                 <span v-if="taskMeta(task)" :title="task.due_at || undefined">{{ taskMeta(task) }}</span>
-                                                <Badge v-if="task.overdue" size="sm" color="red" :text="t.task_overdue" />
+                                                <Badge v-if="task.overdue" size="sm" color="red" :text="t.task_overdue" pill />
                                                 <Badge
                                                     v-else-if="!task.done && task.workflow_status !== 'assigned'"
                                                     size="sm"
                                                     :color="statusColor(task.workflow_status)"
                                                     :text="task.status_label"
-                                                />
+                                                 pill />
                                             </div>
 
                                             <!-- What came back, indented under the task it
@@ -626,7 +626,7 @@ function saveNotes() {
                                                         <li v-for="file in submission.files" :key="file.id" class="flex items-center gap-2 text-xs">
                                                             <a :href="file.download_url" class="truncate hover:underline">{{ file.filename }}</a>
                                                             <span v-if="file.size_human" class="text-gray-500 dark:text-gray-400">{{ file.size_human }}</span>
-                                                            <Badge v-if="file.missing" size="sm" color="red" :text="t.submission_file_missing" />
+                                                            <Badge v-if="file.missing" size="sm" color="red" :text="t.submission_file_missing" pill />
                                                         </li>
                                                     </ul>
                                                 </div>
@@ -705,14 +705,16 @@ function saveNotes() {
                         <ul v-else class="-my-2 divide-y divide-content-border">
                             <li v-for="file in files" :key="file.id" class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                 <div class="flex min-w-0 items-center gap-3">
-                                    <Icon name="file" class="size-4 shrink-0 text-gray-500" />
+                                    <!-- `file` is not in the icon set; an unknown
+                                         name renders an empty box, silently. -->
+                                    <Icon name="file-content-list" class="size-4 shrink-0 text-gray-500" />
                                     <div class="min-w-0">
                                         <a :href="file.download_url" class="block truncate text-sm font-medium hover:underline">{{ file.title }}</a>
                                         <div class="flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
                                             <span v-if="file.filename !== file.title" class="truncate">{{ file.filename }}</span>
                                             <span v-if="file.size_human">{{ file.size_human }}</span>
                                             <span v-if="file.uploaded_human">{{ file.uploaded_human }}{{ file.uploaded_by ? ' ' + t.file_uploaded_by.replace(':name', file.uploaded_by) : '' }}</span>
-                                            <Badge v-if="file.missing" size="sm" color="red" :text="t.file_missing" />
+                                            <Badge v-if="file.missing" size="sm" color="red" :text="t.file_missing" pill />
                                         </div>
                                     </div>
                                 </div>
@@ -816,8 +818,8 @@ function saveNotes() {
                                                 size="sm"
                                                 :color="sessionStatusColor(session.status)"
                                                 :text="session.status_label"
-                                            />
-                                            <Badge v-if="session.archived" class="ms-2 align-middle" size="sm" :text="t.session_archived" />
+                                             pill />
+                                            <Badge v-if="session.archived" class="ms-2 align-middle" size="sm" :text="t.session_archived" pill />
                                             <span class="block text-xs text-gray-500 dark:text-gray-400">
                                                 <span v-if="session.duration_minutes">{{ session.duration_minutes }} {{ t.session_minutes_unit }}</span>
                                                 <span v-if="session.duration_minutes && session.coach_name" aria-hidden="true"> · </span>
@@ -987,7 +989,7 @@ function saveNotes() {
                                 size="sm"
                                 :color="sourceColor(source.key)"
                                 :text="source.label"
-                            />
+                             pill />
                         </div>
 
                         <div v-if="failedSources.length" class="mb-3 space-y-0.5">
@@ -1023,12 +1025,12 @@ function saveNotes() {
                                         <span v-if="entry.amount" class="ms-2 tabular-nums text-gray-900 dark:text-gray-100">{{ entry.amount.formatted }}</span>
                                     </div>
                                     <div class="flex shrink-0 items-center gap-2">
-                                        <Badge v-if="entry.badge" size="sm" :color="entry.badge.color" :text="entry.badge.text" />
+                                        <Badge v-if="entry.badge" size="sm" :color="entry.badge.color" :text="entry.badge.text" pill />
                                         <Text size="xs" variant="subtle" :title="entry.at">{{ entry.at_human }}</Text>
                                     </div>
                                 </div>
                                 <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <Badge size="sm" :color="sourceColor(entry.source)" :text="sourceLabel(entry.source)" />
+                                    <Badge size="sm" :color="sourceColor(entry.source)" :text="sourceLabel(entry.source)" pill />
                                     <span v-if="entry.actor">{{ entry.actor }}</span>
                                     <code>{{ entry.kind }}</code>
                                 </div>
