@@ -4,6 +4,8 @@ import { Head, router } from '@statamic/cms/inertia';
 import {
     Header, Button, Badge, Panel, Card, Text, DocsCallout, Field, Input, Select,
     Textarea, Switch, Checkbox, ConfirmationModal, Alert, Icon, DatePicker,
+    Table, TableColumn, TableColumns, TableRow, TableRows, TableCell,
+    Stack, Heading,
 } from '@statamic/cms/ui';
 
 /**
@@ -360,17 +362,31 @@ function removeFile() {
 // writes down for themselves. So there is no add form and no edit form, only
 // a switch, a note and a way to remove a row that should not have come.
 
+// Die Liste ist eine Satzliste, kein Aufgabenzettel: Datum, Dauer, Zustand in
+// Spalten, wie der Kern es fuer Datensaetze tut. Das Ausfuehrliche — Agenda,
+// Zusammenfassung, Protokoll, Notiz — liegt im Stack, dem Ort, an dem das
+// Control Panel seit jeher das Einzelne zeigt. Vorher klappte die Zeile auf und
+// schob den halben Bildschirm nach unten.
 const openSession = ref(null);
 const sessionNote = ref({});
 const sessionErrors = ref({});
 const deletingSession = ref(null);
 
+const shownSession = computed(() =>
+    props.sessions.find((s) => s.id === openSession.value) ?? null,
+);
+
+const sessionStackOpen = computed({
+    get: () => openSession.value !== null,
+    set: (v) => { if (! v) openSession.value = null; },
+});
+
 // The subheading arrives finished from the server, unlike the tasks panel's,
 // which this screen assembles. A count has to be declined and no language
 // does that with a colon: ":count Sitzungen" reads "1 Sitzungen".
 
-function toggleSession(session) {
-    openSession.value = openSession.value === session.id ? null : session.id;
+function openSessionStack(session) {
+    openSession.value = session.id;
 
     // Seeded on opening rather than up front, so a room with forty sittings
     // does not carry forty strings around for the one that gets read.
@@ -734,149 +750,171 @@ function saveNotes() {
                      coach's desk, and its job is to show what the client
                      cannot see yet. -->
                 <Panel :heading="t.panel_sessions" :subheading="sessionsSubheading">
-                    <Card>
+                    <Card :class="sessions.length ? 'p-0!' : ''">
                         <div v-if="sessions.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                             {{ t.sessions_empty }}
                         </div>
-                        <ul v-else class="-my-2 divide-y divide-content-border">
-                            <li v-for="session in sessions" :key="session.id" class="py-2">
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <span class="text-sm font-medium">{{ session.title }}</span>
-                                            <Badge
-                                                v-if="session.status_label"
-                                                size="sm"
-                                                :color="sessionStatusColor(session.status)"
-                                                :text="session.status_label"
-                                            />
-                                            <Badge v-if="session.draft" size="sm" color="amber" :text="t.session_draft" />
-                                            <Badge v-if="session.archived" size="sm" color="default" :text="t.session_archived" />
-                                        </div>
-                                        <!-- Separated by middots rather than
-                                             spaces: the line runs date, length,
-                                             coach and two media words together,
-                                             and without them "Adrian Goldner
-                                             Recording Transcript" reads as one
-                                             thing. -->
-                                        <div class="flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                            <span :title="session.held_at || ''">
-                                                {{ session.held_date ? session.held_date + ', ' + session.held_time : t.session_no_date }}
+
+                        <!-- Core's own table, not a hand-rolled list. A sitting
+                             is a record with a date, a length and a state, and
+                             the Control Panel has one way of showing records. -->
+                        <Table v-else>
+                            <TableColumns>
+                                <TableColumn class="whitespace-nowrap">{{ t.session_column_when }}</TableColumn>
+                                <TableColumn>{{ t.session_column_session }}</TableColumn>
+                                <TableColumn>{{ t.session_column_media }}</TableColumn>
+                                <TableColumn v-if="canEdit" class="whitespace-nowrap">{{ t.session_column_visible }}</TableColumn>
+                                <TableColumn v-if="canEdit"><span class="sr-only">{{ t.delete }}</span></TableColumn>
+                            </TableColumns>
+                            <TableRows>
+                                <TableRow v-for="session in sessions" :key="session.id">
+                                    <TableCell class="tabular-nums whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            class="text-start hover:underline"
+                                            :title="session.held_at || ''"
+                                            @click="openSessionStack(session)"
+                                        >
+                                            {{ session.held_date || t.session_no_date }}
+                                            <span v-if="session.held_time" class="block text-xs text-gray-500 dark:text-gray-400">{{ session.held_time }}</span>
+                                        </button>
+                                    </TableCell>
+
+                                    <TableCell>
+                                        <button type="button" class="text-start" @click="openSessionStack(session)">
+                                            <span class="font-medium hover:underline">{{ session.title }}</span>
+                                            <span class="ms-2 inline-flex gap-1 align-middle">
+                                                <Badge
+                                                    v-if="session.status_label"
+                                                    size="sm"
+                                                    :color="sessionStatusColor(session.status)"
+                                                    :text="session.status_label"
+                                                />
+                                                <Badge v-if="session.draft" size="sm" color="amber" :text="t.session_draft" />
+                                                <Badge v-if="session.archived" size="sm" :text="t.session_archived" />
                                             </span>
-                                            <template v-if="session.duration_minutes">
-                                                <span aria-hidden="true">·</span>
-                                                <span>{{ session.duration_minutes }} {{ t.session_minutes_unit }}</span>
-                                            </template>
-                                            <template v-if="session.coach_name">
-                                                <span aria-hidden="true">·</span>
-                                                <span>{{ session.coach_name }}</span>
-                                            </template>
-                                            <template v-for="line in sessionMedia(session).live" :key="line.key">
-                                                <span aria-hidden="true">·</span>
-                                                <a :href="line.url" target="_blank" rel="noopener" class="underline underline-offset-2">{{ line.label }}</a>
-                                            </template>
-                                            <template v-if="sessionMedia(session).expired">
-                                                <span aria-hidden="true">·</span>
-                                                <span class="italic opacity-70">{{ sessionMedia(session).expired }} {{ t.session_link_expired }}</span>
-                                            </template>
-                                            <template v-if="sessionMedia(session).linkless">
-                                                <span aria-hidden="true">·</span>
-                                                <span class="italic opacity-70">{{ sessionMedia(session).linkless }} {{ t.session_link_none }}</span>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <!-- Bare switch, no written label. The tasks
-                                         panel next door does the same, and its
-                                         switches line up with these; a word
-                                         repeated on every row pushed the whole
-                                         column 190px left, broke the meta line,
-                                         and on a draft row said out loud what
-                                         the badge beside it already said. The
-                                         meaning lives in the title instead. -->
-                                    <div class="flex shrink-0 items-center gap-3">
+                                            <span class="block text-xs text-gray-500 dark:text-gray-400">
+                                                <span v-if="session.duration_minutes">{{ session.duration_minutes }} {{ t.session_minutes_unit }}</span>
+                                                <span v-if="session.duration_minutes && session.coach_name" aria-hidden="true"> · </span>
+                                                <span v-if="session.coach_name">{{ session.coach_name }}</span>
+                                            </span>
+                                        </button>
+                                    </TableCell>
+
+                                    <!-- Darf umbrechen. Es ist die einzige Spalte
+                                         mit variabler Laenge, und ein
+                                         `nowrap` hier schob die beiden
+                                         schmalen Spalten rechts aus der Karte. -->
+                                    <TableCell class="text-xs text-gray-500 dark:text-gray-400">
+                                        <template v-for="line in sessionMedia(session).live" :key="line.key">
+                                            <a :href="line.url" target="_blank" rel="noopener" class="me-2 underline underline-offset-2">{{ line.label }}</a>
+                                        </template>
+                                        <span v-if="sessionMedia(session).expired" class="me-2 italic opacity-70">{{ sessionMedia(session).expired }} {{ t.session_link_expired }}</span>
+                                        <span v-if="sessionMedia(session).linkless" class="italic opacity-70">{{ sessionMedia(session).linkless }} {{ t.session_link_none }}</span>
+                                    </TableCell>
+
+                                    <TableCell v-if="canEdit">
                                         <Switch
                                             :model-value="session.published"
                                             size="sm"
-                                            :disabled="!canEdit || busy"
+                                            :disabled="busy"
                                             :title="session.published ? t.session_visible : t.session_draft"
                                             :aria-label="t.session_visible"
                                             @update:model-value="toggleSessionVisible(session, $event)"
                                         />
+                                    </TableCell>
+
+                                    <TableCell v-if="canEdit" class="text-end">
                                         <Button
-                                            :icon="openSession === session.id ? 'chevron-up' : 'chevron-down'"
-                                            variant="ghost"
-                                            size="sm"
-                                            :aria-label="openSession === session.id ? t.session_protocol_hide : t.session_protocol_show"
-                                            @click="toggleSession(session)"
-                                        />
-                                        <Button
-                                            v-if="canEdit"
                                             icon="trash"
                                             variant="ghost"
                                             size="sm"
                                             :aria-label="t.delete"
                                             @click="deletingSession = session"
                                         />
-                                    </div>
-                                </div>
-
-                                <!-- Hung on the row it belongs to by an indent
-                                     and a rule down the left, so that halfway
-                                     through a long write-up it is still clear
-                                     which sitting is being read. -->
-                                <div v-if="openSession === session.id" class="mt-3 ms-1 space-y-5 border-s-2 border-content-border ps-4">
-                                    <div v-if="session.agenda">
-                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_agenda }}</div>
-                                        <p class="mt-0.5 text-sm whitespace-pre-line">{{ session.agenda }}</p>
-                                    </div>
-                                    <div v-if="session.summary">
-                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_summary }}</div>
-                                        <p class="mt-0.5 text-sm whitespace-pre-line">{{ session.summary }}</p>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_protocol }}</div>
-                                        <!-- Blocks, never markup. The write-up is HTML from a
-                                             system this addon did not author and a Control Panel
-                                             is a superuser session, so the server hands over the
-                                             one distinction that carries the structure — heading
-                                             or not — and the elements below are the screen's own.
-                                             Flattened to one string, the subheadings sat in the
-                                             same weight as their paragraphs and the longest block
-                                             on the page ran together. -->
-                                        <div v-if="session.protocol_blocks.length" class="mt-0.5 space-y-1">
-                                            <template v-for="(block, i) in session.protocol_blocks" :key="i">
-                                                <p v-if="block.type === 'heading'" class="pt-1.5 text-sm font-semibold">{{ block.text }}</p>
-                                                <p v-else class="text-sm whitespace-pre-line">{{ block.text }}</p>
-                                            </template>
-                                        </div>
-                                        <p v-else class="mt-0.5 text-sm text-gray-500 italic dark:text-gray-400">{{ t.session_protocol_none }}</p>
-                                    </div>
-
-                                    <div v-if="canEdit">
-                                        <Field :label="t.session_notes" :instructions="t.session_notes_help" :error="sessionErrors.notes">
-                                            <Textarea v-model="sessionNote[session.id]" :rows="3" />
-                                        </Field>
-                                        <Button
-                                            class="mt-2"
-                                            size="sm"
-                                            :text="t.session_notes_save"
-                                            :disabled="busy || !sessionNoteDirty(session)"
-                                            @click="saveSessionNote(session)"
-                                        />
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
+                                    </TableCell>
+                                </TableRow>
+                            </TableRows>
+                        </Table>
 
                         <!-- The panel would otherwise stop mid-air. Its two
                              neighbours end in a form, and the absence of one
                              here is the thing worth explaining: sittings are
                              not typed, they arrive. -->
-                        <p v-if="sessions.length" class="mt-4 border-t border-content-border pt-3 text-xs text-gray-500 dark:text-gray-400">
+                        <p class="border-t border-content-border px-4 py-3 text-xs text-gray-500 dark:text-gray-400" :class="sessions.length ? '' : 'px-0'">
                             {{ t.sessions_footnote }}
                         </p>
                     </Card>
                 </Panel>
+
+                <!-- Was in der Zeile keinen Platz hat: Agenda, Zusammenfassung,
+                     das Protokoll und die eigene Notiz. Im Stack, weil das
+                     Control Panel das Einzelne seit jeher dort zeigt. -->
+                <Stack v-model:open="sessionStackOpen" size="narrow">
+                    <div v-if="shownSession" class="bg-content-bg flex h-full flex-col">
+                        <div class="border-content-border border-b px-6 py-4">
+                            <Heading :text="shownSession.title" size="lg" />
+                            <p class="mt-0.5 text-sm text-gray-500 tabular-nums dark:text-gray-400">
+                                <span>{{ shownSession.held_date ? shownSession.held_date + ', ' + shownSession.held_time : t.session_no_date }}</span>
+                                <span v-if="shownSession.duration_minutes"> · {{ shownSession.duration_minutes }} {{ t.session_minutes_unit }}</span>
+                                <span v-if="shownSession.coach_name"> · {{ shownSession.coach_name }}</span>
+                            </p>
+                        </div>
+
+                        <div class="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                            <div v-if="shownSession.agenda">
+                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_agenda }}</div>
+                                <p class="mt-0.5 text-sm whitespace-pre-line">{{ shownSession.agenda }}</p>
+                            </div>
+
+                            <div v-if="shownSession.summary">
+                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_summary }}</div>
+                                <p class="mt-0.5 text-sm whitespace-pre-line">{{ shownSession.summary }}</p>
+                            </div>
+
+                            <div>
+                                <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t.session_protocol }}</div>
+                                <!-- Blocks, never markup. The write-up is HTML from a
+                                     system this addon did not author and a Control Panel
+                                     is a superuser session, so the server hands over the
+                                     one distinction that carries the structure — heading
+                                     or not — and the elements below are the screen's own.
+                                     Flattened to one string, the subheadings sat in the
+                                     same weight as their paragraphs and the longest block
+                                     on the page ran together. -->
+                                <div v-if="shownSession.protocol_blocks.length" class="mt-0.5 space-y-1">
+                                    <template v-for="(block, i) in shownSession.protocol_blocks" :key="i">
+                                        <p v-if="block.type === 'heading'" class="pt-1.5 text-sm font-semibold">{{ block.text }}</p>
+                                        <p v-else class="text-sm whitespace-pre-line">{{ block.text }}</p>
+                                    </template>
+                                </div>
+                                <p v-else class="mt-0.5 text-sm text-gray-500 italic dark:text-gray-400">{{ t.session_protocol_none }}</p>
+                            </div>
+
+                            <Field v-if="canEdit" :label="t.session_notes" :instructions="t.session_notes_help" :error="sessionErrors.notes">
+                                <Textarea v-model="sessionNote[shownSession.id]" :rows="4" />
+                            </Field>
+                        </div>
+
+                        <div v-if="canEdit" class="border-content-border flex items-center justify-between gap-3 border-t px-6 py-4">
+                            <label class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                <Switch
+                                    :model-value="shownSession.published"
+                                    size="sm"
+                                    :disabled="busy"
+                                    @update:model-value="toggleSessionVisible(shownSession, $event)"
+                                />
+                                <span>{{ shownSession.published ? t.session_visible : t.session_draft }}</span>
+                            </label>
+                            <Button
+                                variant="primary"
+                                :text="t.session_notes_save"
+                                :disabled="busy || !sessionNoteDirty(shownSession)"
+                                @click="saveSessionNote(shownSession)"
+                            />
+                        </div>
+                    </div>
+                </Stack>
 
                 <!-- Timeline: LeadHub's merged list where it is installed, the
                      room's own short list from payments and bookings otherwise.

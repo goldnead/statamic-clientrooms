@@ -293,7 +293,7 @@ class CpSessionScreenTest extends TestCase
             ->assertInertia(function ($page) {
                 $t = $page->toArray()['props']['t'];
 
-                foreach (['panel_sessions', 'sessions_empty', 'sessions_count', 'sessions_draft_count', 'sessions_footnote', 'session_visible', 'session_draft', 'session_protocol', 'session_protocol_none', 'session_recording', 'session_transcript', 'session_link_expired', 'session_link_none', 'session_notes', 'session_delete_title'] as $key) {
+                foreach (['panel_sessions', 'sessions_empty', 'sessions_count', 'sessions_draft_count', 'sessions_footnote', 'session_visible', 'session_draft', 'session_protocol', 'session_protocol_none', 'session_recording', 'session_transcript', 'session_link_expired', 'session_link_none', 'session_notes', 'session_delete_title', 'session_column_when', 'session_column_session', 'session_column_media', 'session_column_visible'] as $key) {
                     $this->assertArrayHasKey($key, $t, $key.' fehlt in strings()');
                     $this->assertStringNotContainsString('statamic-clientrooms::', $t[$key], $key.' ist nicht übersetzt');
                 }

@@ -185,12 +185,16 @@ return [
     'sessions_draft_count' => ':count nicht sichtbar',
     'sessions_footnote' => 'Sitzungen entstehen dort, wo sie stattfinden, und werden hierher durchgeschrieben. Hier entscheidest du, was der Klient davon sieht.',
     'session_minutes_unit' => 'Min.',
+    'session_column_when' => 'Wann',
+    'session_column_session' => 'Sitzung',
+    'session_column_media' => 'Aufzeichnung',
+    // Kurz, weil es eine Spaltenueberschrift ist: „Fuer Klient sichtbar" brach
+    // dreizeilig um und drueckte die Loeschen-Spalte aus der Karte.
+    'session_column_visible' => 'Sichtbar',
     'session_agenda' => 'Agenda',
     'session_summary' => 'Zusammenfassung',
     'session_protocol' => 'Protokoll',
     'session_protocol_none' => 'Kein Protokoll.',
-    'session_protocol_show' => 'Protokoll lesen',
-    'session_protocol_hide' => 'Protokoll zuklappen',
     'session_recording' => 'Aufnahme',
     'session_transcript' => 'Transkript',
     // Einmal am Ende, statt hinter jedem der beiden Wörter. Und zwei

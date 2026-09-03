@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 — 2026-09-03
+
+Die Sitzungsliste sah nicht nach Statamic aus.
+
+### Changed
+
+- **Die Liste ist jetzt eine `Table` des Kerns**, keine handgebaute `<ul>`. Eine Sitzung ist ein
+  Datensatz mit Datum, Dauer und Zustand, und das Control Panel hat einen Weg, Datensätze zu zeigen:
+  Spaltenköpfe, ausgerichtete Spalten, Datum in Ziffernbreite. Die alte Liste war dem Aufgaben-Panel
+  nachgebaut — aber Aufgaben sind ein Zettel zum Abhaken, Sitzungen sind eine Kartei.
+- **Das Ausführliche liegt im `Stack`**, nicht mehr in einer aufklappenden Zeile. Agenda,
+  Zusammenfassung, Protokoll und die eigene Notiz bekommen dort Platz, ohne dass die Liste
+  auseinanderfällt; der Stack ist die Stelle, an der das Control Panel seit jeher das Einzelne zeigt.
+  Der Sichtbar-Schalter steht in seinem Fuß, neben dem Speichern-Knopf.
+- Spaltenkopf ist `Sichtbar`, nicht `Für Klient sichtbar` — der lange Text brach dreizeilig um und
+  drückte die Löschen-Spalte aus der Karte.
+
+### Removed
+
+- `session_protocol_show` / `session_protocol_hide` — es gibt nichts mehr auf- und zuzuklappen.
+
 ## 0.6.0 — 2026-09-02
 
 The sessions panel, and two things the write-up was quietly doing wrong.

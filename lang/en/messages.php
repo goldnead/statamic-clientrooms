@@ -185,12 +185,16 @@ return [
     'sessions_draft_count' => ':count not visible',
     'sessions_footnote' => 'Sessions are recorded where they take place and written through to here. This is where you decide what the client sees of them.',
     'session_minutes_unit' => 'min',
+    'session_column_when' => 'When',
+    'session_column_session' => 'Session',
+    'session_column_media' => 'Recording',
+    // Short, because it is a column head: "Visible to client" wrapped over
+    // three lines and pushed the delete column out of the card.
+    'session_column_visible' => 'Visible',
     'session_agenda' => 'Agenda',
     'session_summary' => 'Summary',
     'session_protocol' => 'Write-up',
     'session_protocol_none' => 'No write-up.',
-    'session_protocol_show' => 'Read write-up',
-    'session_protocol_hide' => 'Hide write-up',
     'session_recording' => 'Recording',
     'session_transcript' => 'Transcript',
     // Once at the end, rather than behind each of the two words. And two
