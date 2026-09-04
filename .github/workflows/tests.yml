@@ -16,7 +16,12 @@ on:
     branches: [main]
   pull_request:
 
-permissions: {}
+# This repository is private. With an empty permission set the job token cannot
+# read the repository, and actions/checkout fails with "Repository not found"
+# on every job — which is how every run since the workflow landed went red
+# before a single test ran. Public siblings get away with `{}`; this one cannot.
+permissions:
+  contents: read
 
 jobs:
   tests:

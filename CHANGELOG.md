@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.2 — 2026-09-05
+
+Das ausgelieferte Bundle war älter als die Quelle, aus der es stammen sollte.
+
+### Fixed
+
+- **`dist/` zur Quelle nachgezogen.** Der Commit `6dc08a9` (Status-Badges als Pille, Icon
+  repariert) änderte `resources/js`, das committete `dist/build` blieb aber auf dem Stand vom
+  Vormittag davor. Wer 0.7.1 installierte, bekam PHP von 0.7.1 und JavaScript von 0.7.0 — genau
+  die Klasse Fehler, die in der Suite am 03.09. „Cannot read properties of undefined" ausgelöst hat.
+  Der frische Build aus der committeten Quelle ist byte-identisch mit dem, was lokal schon
+  ungeprüft im Arbeitsverzeichnis lag; committet ist jetzt dieser Stand.
+- **Status-Badges als Pille, Icon repariert.** 13 Badges hatten `size="sm"` ohne `pill`; mit Rahmen
+  und 3px-Ecke sah das aus wie ein beschnittener Knopf. `Icon name="file"` gibt es im Kern nicht.
+  (Quelle seit 0.7.1 im Repo, Bundle erst jetzt.)
+- **CI lief nie.** Das Repo ist privat, der Workflow hatte `permissions: {}` — damit konnte
+  `actions/checkout` das eigene Repo nicht lesen und jeder Job war rot, bevor ein Test lief. Jetzt
+  `contents: read`. Der `dist`-Job dieser CI ist die Prüfung, die den Fehler oben abgefangen hätte.
+
+## 0.7.1 — 2026-09-03
+
+### Fixed
+
+- **Innenabstand links, gleich hohe Zeilen, Aufzeichnung als Zeichen.** Die Karte trägt kein
+  Polster, damit die Trennlinien durchlaufen; dadurch klebte das Datum an der Kante, jetzt `ps-4`
+  auf der ersten und `pe-4` auf der letzten Spalte. „Aufnahme (Link abgelaufen) · Transkript (kein
+  Link)" brach über drei Zeilen; jetzt zwei Zeichen in einer Zeile, der Tooltip trägt den Zustand,
+  ausgeschrieben steht es im Stack. Das Entwurfs-Abzeichen ist raus, der Schalter daneben sagt
+  dasselbe.
+
 ## 0.7.0 — 2026-09-03
 
 Die Sitzungsliste sah nicht nach Statamic aus.
