@@ -1,8 +1,0 @@
-{
-    "_why": {
-        "ui.listing-component": "Rooms/Show.vue renders the sessions of one room as a nested core <Table> inside the room detail, not as a standalone listing. Moving it to <Listing> needs its own data endpoint with meta.columns and belongs to the suite-wide rework filed as STATE/backlog/backlog-addons-listen-als-statamic-tabellen (p1, 2026-09-03). Waived here so the dist fix of 0.7.2 can ship; remove this waiver when that ticket lands."
-    },
-    "disable": [
-        "ui.listing-component"
-    ]
-}
