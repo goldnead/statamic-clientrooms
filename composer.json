@@ -32,7 +32,7 @@
       "description": "One lasting room per coaching client: timeline, tasks, shared files and notes, opened by the first purchase.",
       "url": "https://github.com/goldnead/statamic-clientrooms",
       "developer": "Adrian Goldner",
-      "developer-url": "https://gldnr.studio"
+      "developer-url": "https://adriangoldner.dev"
     },
     "laravel": {
       "providers": [
