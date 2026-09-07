@@ -7,6 +7,7 @@ use Goldnead\ClientRooms\Support\Settings;
 use Goldnead\ClientRooms\Tests\TestCase;
 use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\Test;
+use Statamic\Facades\Permission;
 
 /**
  * Die Feldliste, die dieses Addon der gemeinsamen Einstellungs-Seite gibt.
@@ -76,6 +77,23 @@ class SettingsTest extends TestCase
                 "Die Einstellungs-Seite bietet [{$key}] an, aber der Schlüssel wird beim Registrieren der Routen gelesen."
             );
         }
+    }
+
+    #[Test]
+    public function das_recht_das_den_abschnitt_bewacht_ist_angemeldet(): void
+    {
+        // `Support\Settings::settingsPermission()` nennt nur eine Zeichenkette.
+        // Ob Statamic ein Recht dieses Namens kennt, steht auf einem anderen
+        // Blatt — und wenn nicht, verschwindet der Abschnitt für jeden, der
+        // kein Superuser ist, ohne dass irgendwo etwas dazu steht.
+        // `boot()`, weil `Permission::extend()` die Rückrufe nur einreiht;
+        // ausgeführt werden sie erst hier. Ohne den Aufruf ist die Liste leer
+        // und die Behauptung würde für jedes Recht der Welt umfallen, auch
+        // für die, die es gibt.
+        $this->assertContains(
+            Settings::settingsPermission(),
+            Permission::boot()->all()->keys()->all()
+        );
     }
 
     #[Test]
