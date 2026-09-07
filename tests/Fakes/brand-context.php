@@ -10,6 +10,34 @@
  * sibling is in.
  */
 
+namespace Goldnead\BrandContext\Contracts {
+    /*
+     * Die Schnittstelle, die `Support\Settings` erfüllt.
+     *
+     * Sie steht hier, weil eine Klasse sich ohne ihre Schnittstelle nicht laden
+     * lässt und die Feldliste sonst in diesem Paket von keinem Test erreichbar
+     * wäre. Eine Schnittstelle hat keine Ausführung, also kann dieser
+     * Stellvertreter sich nicht anders verhalten als das Original — was er
+     * nicht auffängt, ist eine Schnittstelle, die im Original eine Methode
+     * dazubekommt. Dass die echte diese Klasse annimmt, wird nicht hier
+     * belegt, sondern im Playground, wo `statamic-brand-context` und dieses
+     * Addon nebeneinander installiert sind.
+     */
+    if (! interface_exists(ProvidesSettings::class)) {
+        interface ProvidesSettings
+        {
+            public static function settingsNamespace(): string;
+
+            public static function settingsConfigPath(): string;
+
+            public static function settingsPermission(): string;
+
+            /** @return array<int, array{title: string, description?: string, fields: array<int, array<string, mixed>>}> */
+            public static function settingsGroups(): array;
+        }
+    }
+}
+
 namespace Goldnead\BrandContext\Scopes {
     if (! class_exists(BrandScope::class)) {
         class BrandScope implements \Illuminate\Database\Eloquent\Scope

@@ -2,7 +2,9 @@
 
 namespace Goldnead\ClientRooms;
 
+use Goldnead\BrandContext\Settings\SettingsRegistry;
 use Goldnead\ClientRooms\Support\Files\RoomFiles;
+use Goldnead\ClientRooms\Support\Settings;
 use Goldnead\ClientRooms\Support\Timeline\RoomTimeline;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
@@ -48,6 +50,33 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(ClientRoomsManager::class);
     }
 
+    /**
+     * Die Einstellungs-Seite wird hier angemeldet, nicht in `bootAddon()`.
+     *
+     * Das ist keine Stilfrage. `statamic-brand-context` schreibt die
+     * gespeicherten Abweichungen aus einem `app->booted()`-Rückruf auf die
+     * Konfiguration, absichtlich, damit jedes `boot()` sich vorher anmelden
+     * konnte. `bootAddon()` läuft selbst aus einem `app->booted()`-Rückruf
+     * (Statamics AppServiceProvider), und welcher der beiden zuerst feuert,
+     * hängt an der Ladereihenfolge der Pakete — eine Anmeldung dort erreicht
+     * die Konfiguration auf manchen Installationen und auf anderen nicht,
+     * ohne dass irgendetwas auf dem Bildschirm sagt, auf welchen.
+     *
+     * Die `class_exists`-Prüfung ist Ladeordnung, keine Vorsicht:
+     * `statamic-brand-context` steht in `suggest`, dieses Addon läuft ohne es,
+     * und {@see Settings} implementiert eine Schnittstelle aus diesem Paket.
+     * Eine Klasse, deren Schnittstelle fehlt, lässt sich nicht laden — solange
+     * `Settings::class` nur als Konstante dasteht, fasst sie niemand an.
+     */
+    public function boot()
+    {
+        parent::boot();
+
+        if (class_exists(SettingsRegistry::class)) {
+            $this->app->make(SettingsRegistry::class)->register(Settings::class);
+        }
+    }
+
     public function bootAddon()
     {
         $this->loadTranslationsFrom(__DIR__.'/../lang', 'statamic-clientrooms');
@@ -77,6 +106,17 @@ class ServiceProvider extends AddonServiceProvider
                         Permission::make('edit client rooms')
                             ->label(__('statamic-clientrooms::messages.permission_edit')),
                     ]);
+
+                // Bewacht den Abschnitt dieses Addons auf der gemeinsamen
+                // Einstellungs-Seite. Immer angemeldet, auch ohne
+                // `statamic-brand-context`: ein Recht, das nur manchmal
+                // existiert, verschwindet aus Rollen, die es tragen.
+                //
+                // Daneben, nicht darunter: wer Räume liest, sieht die Notizen
+                // eines Klienten, und wer die Laufzeit von Downloadlinks
+                // ändert, muss keinen einzigen Raum sehen.
+                Permission::register('manage clientrooms settings')
+                    ->label(__('statamic-clientrooms::settings.permission_manage_settings'));
             });
         });
 
