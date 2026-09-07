@@ -64,7 +64,7 @@
     "goldnead/statamic-payments": "Open a room automatically when a coaching product is paid",
     "goldnead/statamic-leadhub": "Show the contact's merged timeline inside the room",
     "goldnead/statamic-booking": "List appointments on the room's timeline when LeadHub is absent",
-    "goldnead/statamic-brand-context": "Keep rooms of different brands apart on a multi-brand install"
+    "goldnead/statamic-brand-context": "Keep rooms of different brands apart on a multi-brand install, and edit this addon's defaults in the Control Panel. Needs >= 1.13; older versions drop the override on the second save"
   },
   "config": {
     "optimize-autoloader": true,
