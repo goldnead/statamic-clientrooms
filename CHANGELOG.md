@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.8.0 — 2026-09-07
+
+### Neu: acht Werte der Klientenräume im Control Panel
+
+Unter **Einstellungen → Addon-Einstellungen** steht ein Abschnitt für dieses Addon, mit vier
+Gruppen:
+
+- **Dateien im Raum:** die erlaubten Dateiendungen (geprüft beim Upload und noch einmal beim
+  Anhängen; eine Endung zu streichen sperrt nur neue Uploads, was schon im Raum liegt, bleibt
+  liegen), die Höchstgröße je Datei für die Mitglieder-Schnittstelle, und die Laufzeit eines
+  Downloadlinks. Ein verkürztes Fenster entwertet keine bereits verschickten Links rückwirkend,
+  es gilt ab dem nächsten Aufbau des Raums.
+- **Aufgaben:** die Arten, die die Aufgabenmaske anbietet, und die einzigen, die sie annimmt.
+  Eine Art zu streichen ändert keine bestehende Aufgabe, sie lässt sich danach nur nicht mehr
+  neu vergeben.
+- **Räume, die sich von selbst öffnen:** die Produktarten und die einzelnen Produkte, bei denen
+  eine bezahlte Zahlung einen Raum öffnet, und der Besitzer, den ein so geöffneter Raum bekommt.
+  Der Besitzer wird beim Öffnen eingetragen und ändert bestehende Räume nicht.
+- **Zeitachse:** wie viele Ereignisse ein Raum zeigt. Gelöscht wird dabei nichts.
+
+Gespeichert wird nur die Abweichung, alles andere folgt weiter
+`config/statamic-clientrooms.php`.
+
+Nicht auf der Seite: `container` und `disk`, weil ein Wechsel die Dateien erst bewegen muss und
+ein Feld, das nur den Zeiger umlegt, aus jedem bestehenden Raum einen leeren macht. Dafür ist
+`php please clientrooms:install` da. Ebenfalls draußen: `member_api`, das beim Registrieren der
+Routen gelesen wird und hier erst nach dem nächsten Deploy wirken würde.
+
+**Neues Recht `manage clientrooms settings`.** Bis es einer Rolle zugewiesen ist, sieht den
+Abschnitt niemand. Bestehende Rechte sind unverändert.
+
+**`goldnead/statamic-brand-context` bleibt weich gebunden, jetzt aber mit Mindestfassung
+1.13.** Das Addon läuft einmarkig weiter ohne den Nachbarn; dann meldet sich diese Seite nicht
+an, und die Werte stehen wie bisher in der Config. Wer ihn hat, braucht 1.13: unter älteren
+Fassungen wurden die Einstellungen der zuletzt angemeldeten Addons auf einer Installation mit
+einer einzigen Marke gar nicht angewendet, und bis 1.12 löschte ein zweites Speichern desselben
+Abschnitts die Überschreibung des ersten, ohne Meldung. Bis hierher stand im `suggest` keine
+Nummer, ein Käufer landete also auf 1.12.
+
 ## 0.7.2 — 2026-09-05
 
 Das ausgelieferte Bundle war älter als die Quelle, aus der es stammen sollte.
