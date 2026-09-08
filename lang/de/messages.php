@@ -8,6 +8,10 @@ return [
     'permission_edit' => 'Klientenräume bearbeiten',
     'container_title' => 'Klientenräume',
 
+    // Wenn die Migrationen noch nicht gelaufen sind
+    'setup_required_heading' => 'Diese Seite braucht ihre Datenbanktabellen, und die gibt es noch nicht.',
+    'setup_required_description' => 'Führe `php artisan migrate` aus, danach lädt die Seite normal. Der Grund steht auch im Log.',
+
     // Rückmeldungen
     'opened' => 'Raum für :name geöffnet.',
     'saved' => 'Gespeichert.',

@@ -13,6 +13,7 @@ use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Goldnead\ClientRooms\Support\Brands;
 use Goldnead\ClientRooms\Support\Owners;
+use Goldnead\ClientRooms\Support\Setup;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -32,6 +33,14 @@ class RoomsController extends CpController
     public function index(Request $request)
     {
         $this->authorize('view client rooms');
+
+        // Two tables, not six. The page itself asks whether any room exists,
+        // and the listing request that follows counts each room's open tasks;
+        // files, submissions and sittings belong to a single room's screen and
+        // are never touched here.
+        if ($setup = Setup::guard(__('statamic-clientrooms::messages.nav'), 'client_rooms', 'client_room_tasks')) {
+            return $setup;
+        }
 
         if ($request->wantsJson() && ! $request->header('X-Inertia')) {
             return $this->json($request);
