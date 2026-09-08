@@ -2,93 +2,93 @@
 
 ## 0.8.0 — 2026-09-07
 
-### Neu: acht Werte der Klientenräume im Control Panel
+### New: eight values of the client rooms in the Control Panel
 
-Unter **Einstellungen → Addon-Einstellungen** steht ein Abschnitt für dieses Addon, mit vier
-Gruppen:
+Under **Settings → Addon Settings** there is a section for this addon, with four groups:
 
-- **Dateien im Raum:** die erlaubten Dateiendungen (geprüft beim Upload und noch einmal beim
-  Anhängen; eine Endung zu streichen sperrt nur neue Uploads, was schon im Raum liegt, bleibt
-  liegen), die Höchstgröße je Datei für die Mitglieder-Schnittstelle, und die Laufzeit eines
-  Downloadlinks. Ein verkürztes Fenster entwertet keine bereits verschickten Links rückwirkend,
-  es gilt ab dem nächsten Aufbau des Raums.
-- **Aufgaben:** die Arten, die die Aufgabenmaske anbietet, und die einzigen, die sie annimmt.
-  Eine Art zu streichen ändert keine bestehende Aufgabe, sie lässt sich danach nur nicht mehr
-  neu vergeben.
-- **Räume, die sich von selbst öffnen:** die Produktarten und die einzelnen Produkte, bei denen
-  eine bezahlte Zahlung einen Raum öffnet, und der Besitzer, den ein so geöffneter Raum bekommt.
-  Der Besitzer wird beim Öffnen eingetragen und ändert bestehende Räume nicht.
-- **Zeitachse:** wie viele Ereignisse ein Raum zeigt. Gelöscht wird dabei nichts.
+- **Files in the room:** the permitted file extensions (checked on upload and again when
+  attaching; removing an extension only blocks new uploads, what already lies in the room stays
+  there), the maximum size per file for the member API, and the lifetime of a download link. A
+  shortened window does not devalue links already sent; it applies from the next time the room
+  is built.
+- **Tasks:** the types the task form offers, and the only ones it accepts. Removing a type
+  changes no existing task, it can only no longer be assigned afresh.
+- **Rooms that open by themselves:** the product types and the individual products for which a
+  paid payment opens a room, and the owner a room opened that way is given. The owner is entered
+  when the room opens and does not change existing rooms.
+- **Timeline:** how many events a room shows. Nothing is deleted in the process.
 
-Gespeichert wird nur die Abweichung, alles andere folgt weiter
+Only the deviation is stored, everything else still follows
 `config/statamic-clientrooms.php`.
 
-Nicht auf der Seite: `container` und `disk`, weil ein Wechsel die Dateien erst bewegen muss und
-ein Feld, das nur den Zeiger umlegt, aus jedem bestehenden Raum einen leeren macht. Dafür ist
-`php please clientrooms:install` da. Ebenfalls draußen: `member_api`, das beim Registrieren der
-Routen gelesen wird und hier erst nach dem nächsten Deploy wirken würde.
+Not on the page: `container` and `disk`, because a change has to move the files first, and a
+field that only moves the pointer turns every existing room into an empty one. That is what
+`php please clientrooms:install` is for. Also left out: `member_api`, which is read while the
+routes are registered and would take effect here only after the next deploy.
 
-**Neues Recht `manage clientrooms settings`.** Bis es einer Rolle zugewiesen ist, sieht den
-Abschnitt niemand. Bestehende Rechte sind unverändert.
+**New permission `manage clientrooms settings`.** Until it is assigned to a role nobody sees the
+section. Existing permissions are unchanged.
 
-**`goldnead/statamic-brand-context` bleibt weich gebunden, jetzt aber mit Mindestfassung
-1.13.** Das Addon läuft einmarkig weiter ohne den Nachbarn; dann meldet sich diese Seite nicht
-an, und die Werte stehen wie bisher in der Config. Wer ihn hat, braucht 1.13: unter älteren
-Fassungen wurden die Einstellungen der zuletzt angemeldeten Addons auf einer Installation mit
-einer einzigen Marke gar nicht angewendet, und bis 1.12 löschte ein zweites Speichern desselben
-Abschnitts die Überschreibung des ersten, ohne Meldung. Bis hierher stand im `suggest` keine
-Nummer, ein Käufer landete also auf 1.12.
+**`goldnead/statamic-brand-context` stays a soft dependency, now with a minimum version of
+1.13.** The addon still runs single-brand without the neighbour; this page then does not
+register itself, and the values stay in the config as before. Whoever has it needs 1.13: under
+older versions the settings of the addons registered last were not applied at all on an
+installation with a single brand, and up to 1.12 a second save of the same section deleted the
+first save's override without a message. Until now `suggest` carried no number, so a buyer ended
+up on 1.12.
 
 ## 0.7.2 — 2026-09-05
 
-Das ausgelieferte Bundle war älter als die Quelle, aus der es stammen sollte.
+The shipped bundle was older than the source it was meant to come from.
 
 ### Fixed
 
-- **`dist/` zur Quelle nachgezogen.** Der Commit `6dc08a9` (Status-Badges als Pille, Icon
-  repariert) änderte `resources/js`, das committete `dist/build` blieb aber auf dem Stand vom
-  Vormittag davor. Wer 0.7.1 installierte, bekam PHP von 0.7.1 und JavaScript von 0.7.0 — genau
-  die Klasse Fehler, die in der Suite am 03.09. „Cannot read properties of undefined" ausgelöst hat.
-  Der frische Build aus der committeten Quelle ist byte-identisch mit dem, was lokal schon
-  ungeprüft im Arbeitsverzeichnis lag; committet ist jetzt dieser Stand.
-- **Status-Badges als Pille, Icon repariert.** 13 Badges hatten `size="sm"` ohne `pill`; mit Rahmen
-  und 3px-Ecke sah das aus wie ein beschnittener Knopf. `Icon name="file"` gibt es im Kern nicht.
-  (Quelle seit 0.7.1 im Repo, Bundle erst jetzt.)
-- **CI lief nie.** Das Repo ist privat, der Workflow hatte `permissions: {}` — damit konnte
-  `actions/checkout` das eigene Repo nicht lesen und jeder Job war rot, bevor ein Test lief. Jetzt
-  `contents: read`. Der `dist`-Job dieser CI ist die Prüfung, die den Fehler oben abgefangen hätte.
+- **`dist/` brought up to the source.** Commit `6dc08a9` (status badges as pills, icon repaired)
+  changed `resources/js`, but the committed `dist/build` stayed at the state of the morning
+  before. Anyone installing 0.7.1 got the PHP of 0.7.1 and the JavaScript of 0.7.0 — exactly the
+  class of mismatch that produced "Cannot read properties of undefined" in the suite on 09-03.
+  The fresh build from the committed source is byte-identical to the unreviewed build that was
+  already sitting in the working directory; that is what is committed now.
+- **Status badges as pills, icon repaired.** 13 badges had `size="sm"` without `pill`; with a
+  border and a 3px corner that looked like a cropped button. `Icon name="file"` does not exist in
+  the core. (Source in the repository since 0.7.1, the bundle only now.)
+- **CI never ran.** The repository is private and the workflow declared `permissions: {}`, so
+  `actions/checkout` could not read the repository and every job was red before a single test.
+  Now `contents: read`. The `dist` job in this CI is the check that would have caught the error
+  above.
 
 ## 0.7.1 — 2026-09-03
 
 ### Fixed
 
-- **Innenabstand links, gleich hohe Zeilen, Aufzeichnung als Zeichen.** Die Karte trägt kein
-  Polster, damit die Trennlinien durchlaufen; dadurch klebte das Datum an der Kante, jetzt `ps-4`
-  auf der ersten und `pe-4` auf der letzten Spalte. „Aufnahme (Link abgelaufen) · Transkript (kein
-  Link)" brach über drei Zeilen; jetzt zwei Zeichen in einer Zeile, der Tooltip trägt den Zustand,
-  ausgeschrieben steht es im Stack. Das Entwurfs-Abzeichen ist raus, der Schalter daneben sagt
-  dasselbe.
+- **Padding on the left, rows of equal height, the recording as an icon.** The card carries no
+  padding so that the dividers run all the way through; that left the date stuck to the edge, now
+  `ps-4` on the first and `pe-4` on the last column. "Recording (link expired) · Transcript (no
+  link)" broke over three lines; now two icons on one line, the tooltip carries the state, and
+  spelled out it stands in the stack. The draft badge is gone, the switch beside it says the same
+  thing.
 
 ## 0.7.0 — 2026-09-03
 
-Die Sitzungsliste sah nicht nach Statamic aus.
+The session listing did not look like Statamic.
 
 ### Changed
 
-- **Die Liste ist jetzt eine `Table` des Kerns**, keine handgebaute `<ul>`. Eine Sitzung ist ein
-  Datensatz mit Datum, Dauer und Zustand, und das Control Panel hat einen Weg, Datensätze zu zeigen:
-  Spaltenköpfe, ausgerichtete Spalten, Datum in Ziffernbreite. Die alte Liste war dem Aufgaben-Panel
-  nachgebaut — aber Aufgaben sind ein Zettel zum Abhaken, Sitzungen sind eine Kartei.
-- **Das Ausführliche liegt im `Stack`**, nicht mehr in einer aufklappenden Zeile. Agenda,
-  Zusammenfassung, Protokoll und die eigene Notiz bekommen dort Platz, ohne dass die Liste
-  auseinanderfällt; der Stack ist die Stelle, an der das Control Panel seit jeher das Einzelne zeigt.
-  Der Sichtbar-Schalter steht in seinem Fuß, neben dem Speichern-Knopf.
-- Spaltenkopf ist `Sichtbar`, nicht `Für Klient sichtbar` — der lange Text brach dreizeilig um und
-  drückte die Löschen-Spalte aus der Karte.
+- **The listing is now a core `Table`**, not a hand-built `<ul>`. A session is a record with a
+  date, a duration and a state, and the Control Panel has a way of showing records: column
+  headers, aligned columns, dates in tabular figures. The old list was modelled on the tasks
+  panel — but tasks are a note to tick off, sessions are a card index.
+- **The detail sits in the `Stack`**, no longer in a row that folds open. Agenda, summary,
+  write-up and the coach's own note get space there without the listing falling apart; the stack
+  is where the Control Panel has always shown the individual item. The visibility switch sits in
+  its footer, next to the save button.
+- The column header is `Visible`, not `Visible to client` — the long text wrapped over three
+  lines and pushed the delete column out of the card.
 
 ### Removed
 
-- `session_protocol_show` / `session_protocol_hide` — es gibt nichts mehr auf- und zuzuklappen.
+- `session_protocol_show` / `session_protocol_hide` — there is nothing left to fold open and
+  shut.
 
 ## 0.6.0 — 2026-09-02
 
