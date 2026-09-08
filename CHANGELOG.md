@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — 2026-09-08
+
+### Changed: `/cp/client-rooms` shows an empty state instead of HTTP 500 when its tables are missing
+
+On the public demo the page answered HTTP 500: the addon was installed, its migrations had never
+run, and the listing threw `no such table: client_rooms` while the page was being built. It now
+checks the two tables it really touches, `client_rooms` and `client_room_tasks`, before the first
+query and renders a setup screen that names the missing ones and says to run `php artisan migrate`.
+
+The reason does not disappear with the 500: the guarded page writes to the log why it turned
+somebody away. Otherwise the site would look installed and never work.
+
 ## 0.8.0 — 2026-09-07
 
 ### New: eight values of the client rooms in the Control Panel
