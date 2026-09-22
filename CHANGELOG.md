@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1 — 2026-09-22
+
+### Fixed: the sessions table on the room page had lost its card padding
+
+`TableCell` from `@statamic/cms/ui` ships `first:pl-0 last:pr-0` by default — it removes the
+inner edge of the first and last column because the surrounding `Card` already supplies its own
+padding (`px-4 sm:px-4.5 py-5`). The two belong together. The sessions table's `Card` was zeroed
+(`p-0!`) instead, and the code tried to compensate with `ps-4`/`pe-4` on the first and last
+column. That compensation never rendered: `first:pl-0` is a pseudo-class and outranks the plain
+utility class appended after it, so Statamic's rule always won and the table sat flush against
+the card's own edge.
+
+The card is a normal, padded `Card` again, and the dead `ps-4`/`pe-4` compensation is gone with
+it — `first:pl-0 last:pr-0` now does what it was built for.
+
 ## 0.9.0 — 2026-09-08
 
 ### Changed: `/cp/client-rooms` shows an empty state instead of HTTP 500 when its tables are missing

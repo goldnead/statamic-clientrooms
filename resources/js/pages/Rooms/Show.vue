@@ -768,29 +768,29 @@ function saveNotes() {
                      coach's desk, and its job is to show what the client
                      cannot see yet. -->
                 <Panel :heading="t.panel_sessions" :subheading="sessionsSubheading">
-                    <Card :class="sessions.length ? 'p-0!' : ''">
+                    <Card>
                         <div v-if="sessions.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                             {{ t.sessions_empty }}
                         </div>
 
                         <!-- Core's own table, not a hand-rolled list. A sitting
                              is a record with a date, a length and a state, and
-                             the Control Panel has one way of showing records. -->
-                        <!-- `ps-4` auf der ersten und `pe-4` auf der letzten
-                             Spalte: die Karte traegt hier kein Polster, damit
-                             die Trennlinien durchlaufen, und ohne das klebte
-                             das Datum an der Kante. -->
+                             the Control Panel has one way of showing records.
+                             Die Karte bleibt normal gepolstert: `TableCell`
+                             bringt `first:pl-0 last:pr-0` schon mit, das
+                             greift nur zusammen mit dem Kartenrand, nicht
+                             gegen ihn. -->
                         <Table v-else>
                             <TableColumns>
-                                <TableColumn class="ps-4 whitespace-nowrap">{{ t.session_column_when }}</TableColumn>
+                                <TableColumn class="whitespace-nowrap">{{ t.session_column_when }}</TableColumn>
                                 <TableColumn>{{ t.session_column_session }}</TableColumn>
                                 <TableColumn class="whitespace-nowrap">{{ t.session_column_media }}</TableColumn>
                                 <TableColumn v-if="canEdit" class="whitespace-nowrap">{{ t.session_column_visible }}</TableColumn>
-                                <TableColumn v-if="canEdit" class="pe-4"><span class="sr-only">{{ t.delete }}</span></TableColumn>
+                                <TableColumn v-if="canEdit"><span class="sr-only">{{ t.delete }}</span></TableColumn>
                             </TableColumns>
                             <TableRows>
                                 <TableRow v-for="session in sessions" :key="session.id">
-                                    <TableCell class="ps-4 align-top tabular-nums whitespace-nowrap">
+                                    <TableCell class="align-top tabular-nums whitespace-nowrap">
                                         <button
                                             type="button"
                                             class="text-start hover:underline"
@@ -861,7 +861,7 @@ function saveNotes() {
                                         />
                                     </TableCell>
 
-                                    <TableCell v-if="canEdit" class="pe-4 text-end align-top">
+                                    <TableCell v-if="canEdit" class="text-end align-top">
                                         <Button
                                             icon="trash"
                                             variant="ghost"
