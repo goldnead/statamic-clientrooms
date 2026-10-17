@@ -70,7 +70,7 @@ return new class extends Migration
     private function hasIndex(): bool
     {
         foreach (Schema::getIndexes('client_room_tasks') as $index) {
-            if (($index['name'] ?? null) === self::INDEX) {
+            if ($index['name'] === self::INDEX) {
                 return true;
             }
         }
