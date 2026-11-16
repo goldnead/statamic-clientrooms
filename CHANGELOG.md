@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3 — 2026-11-16
+
+### Changed
+
+- The package download no longer contains `art/` and `MARKETPLACE.md` (`export-ignore`). No code change, no migration, no new config key.
+
 ## 0.9.2 — 2026-10-17
 
 ### Changed
