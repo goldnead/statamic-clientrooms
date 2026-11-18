@@ -49,6 +49,37 @@ class RoomFiles
         return AssetContainer::findByHandle($this->containerHandle($brandId));
     }
 
+    public function diskHandle(): string
+    {
+        return (string) config('statamic-clientrooms.disk', 'clientrooms');
+    }
+
+    /**
+     * Whether the configured disk can be reached without a signature. Three
+     * ways, and Statamic's `AssetContainer::private()` sees only the first:
+     * a `url`, public visibility (Laravel's `ServeFile` asks for a signature
+     * only while private), or a local root inside the document root, where
+     * the web server answers before Laravel does. Same check as
+     * `MagnetAssets::diskIsPublic()` in statamic-lead-magnets.
+     */
+    public function diskIsPublic(): bool
+    {
+        $config = (array) config('filesystems.disks.'.$this->diskHandle());
+
+        if (($config['url'] ?? null) !== null || ($config['visibility'] ?? null) === 'public') {
+            return true;
+        }
+
+        if (($config['driver'] ?? null) !== 'local') {
+            return false;
+        }
+
+        $root = realpath((string) ($config['root'] ?? '')) ?: (string) ($config['root'] ?? '');
+        $public = realpath(public_path()) ?: public_path();
+
+        return $root !== '' && str_starts_with($root.DIRECTORY_SEPARATOR, rtrim($public, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR);
+    }
+
     /**
      * Create the container for a brand when it does not exist. Returns
      * whether it was created now.
@@ -57,6 +88,13 @@ class RoomFiles
     {
         if ($this->container($brandId) !== null) {
             return false;
+        }
+
+        if ($this->diskIsPublic()) {
+            throw new RuntimeException(sprintf(
+                'statamic-clientrooms: the disk [%s] is public (URL, public visibility, or a root below public/). Client documents need a private disk.',
+                $this->diskHandle(),
+            ));
         }
 
         $title = __('statamic-clientrooms::messages.container_title');
@@ -70,7 +108,7 @@ class RoomFiles
 
         // `disk()` is on the class, not on the contract the facade promises.
         if ($container instanceof StatamicContainer) {
-            $container->disk((string) config('statamic-clientrooms.disk', 'local'));
+            $container->disk($this->diskHandle());
         }
 
         $container->save();

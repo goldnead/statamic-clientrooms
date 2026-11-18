@@ -75,6 +75,27 @@ class ServiceProvider extends AddonServiceProvider
         if (class_exists(SettingsRegistry::class)) {
             $this->app->make(SettingsRegistry::class)->register(Settings::class);
         }
+
+        $this->bootDocumentsDisk();
+    }
+
+    /**
+     * Define the addon's own disk for client documents, unless the host
+     * already defines one under that name. Own root, no `url`, not served,
+     * so the signed download is the only way to a file.
+     */
+    protected function bootDocumentsDisk(): void
+    {
+        if (is_array(config('filesystems.disks.clientrooms'))) {
+            return;
+        }
+
+        config(['filesystems.disks.clientrooms' => [
+            'driver' => 'local',
+            'root' => storage_path('app/clientrooms'),
+            'serve' => false,
+            'throw' => false,
+        ]]);
     }
 
     public function bootAddon()

@@ -25,7 +25,13 @@ class InstallCommand extends Command
 
     public function handle(RoomFiles $files): int
     {
-        $disk = (string) config('statamic-clientrooms.disk', 'local');
+        $disk = $files->diskHandle();
+
+        if ($files->diskIsPublic()) {
+            $this->error(sprintf('Disk [%s] is public (URL, public visibility, or a root below public/). Client documents need a private disk.', $disk));
+
+            return self::FAILURE;
+        }
 
         foreach ($files->brandIds() as $brandId) {
             $handle = $files->containerHandle($brandId);

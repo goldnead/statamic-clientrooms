@@ -11,15 +11,19 @@ return [
     | documents, one folder `room-<id>/` per room. `php please clientrooms:install`
     | creates it on the disk named below when it does not exist yet.
     |
-    | The default disk is `local`, which has no public URL. Client documents
-    | are never linked by their storage path; the client gets a signed URL that
-    | expires. Put the container on a public disk only if you know why.
+    | The default disk is `clientrooms`, defined by the addon itself: its own
+    | root `storage/app/clientrooms`, no URL, not served. Client documents are
+    | never linked by their storage path; the client gets a signed URL that
+    | expires. Not the shared `local` disk, so the folder can be backed up or
+    | moved without taking other data along. `clientrooms:install` and the
+    | first upload refuse a disk that is public (URL, public visibility, or a
+    | root below `public/`).
     |
     */
 
     'container' => env('CLIENTROOMS_CONTAINER', 'clientrooms'),
 
-    'disk' => env('CLIENTROOMS_DISK', 'local'),
+    'disk' => env('CLIENTROOMS_DISK', 'clientrooms'),
 
     /*
     | On a multi-brand install (goldnead/statamic-brand-context) each brand
