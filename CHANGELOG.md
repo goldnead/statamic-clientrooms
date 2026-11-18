@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The Control Panel room page (`/cp/client-rooms/{room}`) now asks the setup guard of `goldnead/statamic-brand-context` 1.27 or newer first: on a database whose migrations have not run it shows the same setup screen as the listing instead of an HTTP 500. brand-context stays optional (`suggest`); without it, or with an older version, the page behaves as before. No migration, no new config key.
+
 ## 0.9.3 — 2026-11-16
 
 ### Changed
