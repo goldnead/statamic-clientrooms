@@ -24,6 +24,43 @@ use Inertia\Response;
 final class Setup
 {
     /**
+     * `goldnead/statamic-brand-context` 1.27's route middleware for CP detail
+     * pages, as a class name, never an import: the package is a suggest, and a
+     * `use` of a class that is not installed is a fatal on the first page.
+     */
+    private const DETAIL_GUARD = 'Goldnead\BrandContext\Http\Middleware\GuardSetup';
+
+    /**
+     * Route middleware that shows this addon's setup screen on a detail page
+     * whose tables are missing, or nothing when brand-context (>= 1.27) is not
+     * installed. Without it the page behaves as it always did.
+     *
+     * @return list<string>
+     */
+    public static function detailGuard(string $title, string ...$tables): array
+    {
+        return self::detailGuardFrom(self::DETAIL_GUARD, $title, ...$tables);
+    }
+
+    /**
+     * {@see detailGuard()} with the middleware class named, so a test can ask
+     * what happens when it is not there. Not meant for anything else.
+     *
+     * @internal
+     *
+     * @param  class-string|string  $guard
+     * @return list<string>
+     */
+    public static function detailGuardFrom(string $guard, string $title, string ...$tables): array
+    {
+        if (! class_exists($guard) || ! method_exists($guard, 'using')) {
+            return [];
+        }
+
+        return [$guard::using(self::class, $title, ...$tables)];
+    }
+
+    /**
      * The setup screen for a CP listing, or null when the page can run.
      *
      * @param  string  $title  The page's own heading, so the screen still reads as that page.

@@ -18,11 +18,25 @@ abstract class TestCase extends AddonTestCase
 {
     use PreventsSavingStacheItemsToDisk;
 
+    protected const BRAND_GUARD = 'Goldnead\BrandContext\Http\Middleware\GuardSetup';
+
     protected string $addonServiceProvider = ServiceProvider::class;
 
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
+
+        // Where brand-context is in vendor, the CP detail route names its
+        // `brand.setup-guard` alias, which the package's own provider registers
+        // on an install. The provider is not booted here: it would replace the
+        // stand-ins in tests/Fakes that the brand tests drive. The alias is the
+        // only part this addon uses, so only that is registered, from the
+        // package's own constants.
+        $guard = self::BRAND_GUARD;
+
+        if (class_exists($guard)) {
+            $app['router']->aliasMiddleware($guard::ALIAS, $guard);
+        }
 
         $app['config']->set('database.default', 'testing');
         $app['config']->set('statamic.system.multisite', false);

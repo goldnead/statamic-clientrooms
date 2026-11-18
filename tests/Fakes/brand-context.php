@@ -94,6 +94,17 @@ namespace Goldnead\ClientRooms\Tests\Fakes {
             return $this->current !== null;
         }
 
+        /** The real BrandScope asks both when brand-context is installed next to the suite. */
+        public function scopeIsDisabled(): bool
+        {
+            return false;
+        }
+
+        public function failMode(): string
+        {
+            return 'closed';
+        }
+
         public function currentId(): int
         {
             return $this->current ?? 0;

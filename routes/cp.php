@@ -5,6 +5,7 @@ use Goldnead\ClientRooms\Http\Controllers\Cp\RoomsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\SessionsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\SubmissionsController;
 use Goldnead\ClientRooms\Http\Controllers\Cp\TasksController;
+use Goldnead\ClientRooms\Support\Setup;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,7 +21,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('client-rooms')->name('client-rooms.')->middleware('can:view client rooms')->group(function (): void {
     Route::get('/', [RoomsController::class, 'index'])->name('index');
-    Route::get('{room}', [RoomsController::class, 'show'])->name('show')->whereNumber('room');
+    // The detail page asks the setup guard first when brand-context is installed:
+    // the room is read inside the controller, and without a table that is a 500.
+    Route::get('{room}', [RoomsController::class, 'show'])
+        ->name('show')
+        ->whereNumber('room')
+        ->middleware(Setup::detailGuard(
+            'statamic-clientrooms::messages.nav',
+            'client_rooms',
+            'client_room_tasks',
+            'client_room_files',
+            'client_room_sessions',
+            'client_room_task_submissions',
+            'client_room_task_submission_files',
+        ));
     Route::get('{room}/files/{file}/download', [FilesController::class, 'download'])->name('files.download')->whereNumber(['room', 'file']);
 
     // What the client sent back. Reading it is part of looking at the room.
