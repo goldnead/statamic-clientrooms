@@ -53,7 +53,15 @@ final class Setup
      */
     public static function detailGuardFrom(string $guard, string $title, string ...$tables): array
     {
-        if (! class_exists($guard) || ! method_exists($guard, 'using')) {
+        if (! class_exists($guard) || ! method_exists($guard, 'using') || ! defined($guard.'::ALIAS')) {
+            return [];
+        }
+
+        // The class is in vendor, but the alias is the package's provider's to
+        // register. A route naming an alias nobody registered is an HTTP 500
+        // (Laravel reads it as a class name), so no alias means no middleware.
+        // Routes load after every provider has booted, so the answer is final.
+        if (! array_key_exists(constant($guard.'::ALIAS'), app('router')->getMiddleware())) {
             return [];
         }
 

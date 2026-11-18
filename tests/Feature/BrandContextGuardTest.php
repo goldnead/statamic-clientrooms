@@ -8,6 +8,17 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 
+/** A guard class whose alias nobody registered: brand-context in vendor, its provider not booted. */
+class AliasLessGuard
+{
+    public const ALIAS = 'brand.never-registered-guard';
+
+    public static function using(string $setup, string $title, string ...$tables): string
+    {
+        return self::ALIAS.':'.$setup;
+    }
+}
+
 /**
  * The detail page's setup guard comes from `goldnead/statamic-brand-context`
  * (>= 1.27), which is a suggest. Both installs have to hold:
@@ -80,6 +91,28 @@ class BrandContextGuardTest extends TestCase
 
         $this->assertSame('statamic-clientrooms::SetupRequired', $page['component']);
         $this->assertContains('client_rooms', $page['props']['tables']);
+    }
+
+    #[Test]
+    public function with_brand_context_a_user_without_the_permission_does_not_see_the_setup_screen(): void
+    {
+        if (! $this->installed()) {
+            $this->markTestSkipped('goldnead/statamic-brand-context is not installed.');
+        }
+
+        $this->dropAddonTables();
+
+        $user = $this->userWithoutPermission();
+
+        // Like the rest of the CP: a refusal, never the screen with the table names.
+        $this->actingAs($user)->get('/cp/client-rooms/1')->assertRedirect();
+        $this->actingAs($user)->getJson('/cp/client-rooms/1')->assertForbidden();
+    }
+
+    #[Test]
+    public function a_guard_class_without_its_alias_in_the_router_gives_no_middleware(): void
+    {
+        $this->assertSame([], Setup::detailGuardFrom(AliasLessGuard::class, 'Title', 'client_rooms'));
     }
 
     #[Test]
