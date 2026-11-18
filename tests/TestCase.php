@@ -20,6 +20,9 @@ abstract class TestCase extends AddonTestCase
 
     protected const BRAND_GUARD = 'Goldnead\BrandContext\Http\Middleware\GuardSetup';
 
+    /** A test that boots brand-context's own provider leaves the alias to it. */
+    protected bool $registerGuardAlias = true;
+
     protected string $addonServiceProvider = ServiceProvider::class;
 
     protected function defineEnvironment($app): void
@@ -34,7 +37,7 @@ abstract class TestCase extends AddonTestCase
         // package's own constants.
         $guard = self::BRAND_GUARD;
 
-        if (class_exists($guard)) {
+        if ($this->registerGuardAlias && class_exists($guard)) {
             $app['router']->aliasMiddleware($guard::ALIAS, $guard);
         }
 
