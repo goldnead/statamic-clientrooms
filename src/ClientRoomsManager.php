@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use RuntimeException;
 use Statamic\Contracts\Auth\User as UserContract;
@@ -290,7 +291,15 @@ class ClientRoomsManager
                 $this->submissionFiles->attach($room, $submission, $file);
             }
         } catch (Throwable $e) {
-            $this->submissionFiles->removeFor($submission->load('files'));
+            // The original failure is what the caller must see; a cleanup that
+            // fails too is only said in the log, with what is left behind.
+            try {
+                if (! $this->submissionFiles->removeFor($submission->load('files'))) {
+                    Log::warning('clientrooms: a refused submission could not be cleaned up completely.', ['submission' => $submission->getKey(), 'task' => $task->getKey()]);
+                }
+            } catch (Throwable $cleanup) {
+                Log::warning('clientrooms: cleanup of a refused submission failed.', ['submission' => $submission->getKey(), 'error' => $cleanup->getMessage()]);
+            }
 
             throw $e;
         }
@@ -362,7 +371,7 @@ class ClientRoomsManager
             ->whereKey($task->getKey())->whereNull('done_at')
             ->update($values + ['updated_at' => now()]);
 
-        $task->forceFill($values)->syncOriginal();
+        $task->forceFill($values)->syncOriginalAttributes(array_keys($values));
 
         if ($claimed !== 1) {
             return $task->refresh();
