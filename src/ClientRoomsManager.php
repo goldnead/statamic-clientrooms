@@ -346,14 +346,27 @@ class ClientRoomsManager
             return $task;
         }
 
-        $task->forceFill([
+        $values = [
             'done_at' => now(),
             // `?? $doneBy` like `submitTask()`: `resolveId()` swallows any
             // throwable and answers null, and a lookup that stumbles must not
             // quietly turn "she ticked it" into "nobody ticked it".
             'done_by' => Owners::resolveId($doneBy) ?? $doneBy,
             'status' => ClientRoomTask::STATUS_COMPLETED,
-        ])->save();
+        ];
+
+        // Decided in the database, not on the loaded model: of two requests
+        // that tick at once (a double click, client and coach) only one update
+        // matches the open row, so only one of them announces the task.
+        $claimed = ClientRoomTask::query()->withoutGlobalScopes()
+            ->whereKey($task->getKey())->whereNull('done_at')
+            ->update($values + ['updated_at' => now()]);
+
+        $task->forceFill($values)->syncOriginal();
+
+        if ($claimed !== 1) {
+            return $task->refresh();
+        }
 
         $room = $this->roomOf($task);
         $room->touchActivity();

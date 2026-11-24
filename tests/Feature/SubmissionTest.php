@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
+use Statamic\Events\AssetDeleting;
 use Statamic\Facades\Antlers;
 use Statamic\Facades\Asset;
 
@@ -320,6 +321,28 @@ class SubmissionTest extends TestCase
         $this->assertSame(0, $task->submissions()->count());
         $this->assertSame(0, $file->newQuery()->count());
         $this->assertNull(Asset::find($id), 'The recording is still in the container.');
+    }
+
+    #[Test]
+    public function a_submission_stays_when_its_recording_cannot_be_deleted(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        $submission = ClientRooms::submitTask($task, 'Text', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+        $file = $submission->files[0];
+        $id = $file->container.'::'.$file->path;
+
+        // A listener vetoes the deletion of the asset.
+        Event::listen(AssetDeleting::class, fn () => false);
+
+        $this->assertFalse(ClientRooms::removeSubmission($submission));
+
+        // The recording is still there, so the row that points at it must be too.
+        $this->assertNotNull(Asset::find($id));
+        $this->assertSame(1, $task->submissions()->count());
+        $this->assertSame(1, $file->newQuery()->count());
     }
 
     #[Test]

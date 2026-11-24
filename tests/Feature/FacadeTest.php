@@ -7,6 +7,7 @@ use Goldnead\ClientRooms\Events\ClientRoomOpened;
 use Goldnead\ClientRooms\Events\ClientRoomTaskCompleted;
 use Goldnead\ClientRooms\Facades\ClientRooms;
 use Goldnead\ClientRooms\Models\ClientRoom;
+use Goldnead\ClientRooms\Models\ClientRoomTask;
 use Goldnead\ClientRooms\Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -117,6 +118,28 @@ class FacadeTest extends TestCase
 
         ClientRooms::reopenTask($task);
         $this->assertFalse($task->refresh()->isDone());
+    }
+
+    #[Test]
+    public function two_requests_ticking_the_same_task_announce_it_once(): void
+    {
+        Event::fake([ClientRoomTaskCompleted::class]);
+
+        $room = ClientRooms::open('maria@example.com');
+        $id = ClientRooms::addTask($room, 'Atemübung schicken')->id;
+
+        // Two requests, each holding its own copy loaded before the other
+        // one wrote: a double click, the client and the coach at once.
+        $first = ClientRoomTask::query()->findOrFail($id);
+        $second = ClientRoomTask::query()->findOrFail($id);
+
+        ClientRooms::completeTask($first, 'maria@example.com');
+        ClientRooms::completeTask($second, 'coach');
+
+        Event::assertDispatchedTimes(ClientRoomTaskCompleted::class, 1);
+        $this->assertTrue($second->isDone());
+        // The first tick wins; the second must not overwrite who did it.
+        $this->assertSame('maria@example.com', ClientRoomTask::query()->findOrFail($id)->done_by);
     }
 
     #[Test]
