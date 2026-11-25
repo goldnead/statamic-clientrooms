@@ -96,7 +96,14 @@ class SubmissionFiles
             $clean = $this->remove($file) && $clean;
         }
 
-        return $submission->delete() !== false && $clean;
+        // A recording that could not be removed keeps its submission: deleting
+        // the row would cascade the file rows and leave the recording in the
+        // container with nothing pointing at it.
+        if (! $clean) {
+            return false;
+        }
+
+        return $submission->delete() !== false;
     }
 
     /**

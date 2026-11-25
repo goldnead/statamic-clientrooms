@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Goldnead\ClientRooms\Models\ClientRoomTask updateTask(\Goldnead\ClientRooms\Models\ClientRoomTask|int $task, array $attributes)
  * @method static \Goldnead\ClientRooms\Models\ClientRoomTask publishTask(\Goldnead\ClientRooms\Models\ClientRoomTask|int $task, bool $published = true)
  * @method static \Goldnead\ClientRooms\Models\ClientRoomTaskSubmission submitTask(\Goldnead\ClientRooms\Models\ClientRoomTask|int $task, ?string $body = null, array $files = [], ?string $submittedBy = null, array $attributes = [])
- * @method static void removeSubmission(\Goldnead\ClientRooms\Models\ClientRoomTaskSubmission|int $submission)
+ * @method static bool removeSubmission(\Goldnead\ClientRooms\Models\ClientRoomTaskSubmission|int $submission)
  * @method static string submissionDownloadUrl(\Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile $file)
  * @method static \Goldnead\ClientRooms\Models\ClientRoomTask completeTask(\Goldnead\ClientRooms\Models\ClientRoomTask|int $task, ?string $doneBy = null)
  * @method static \Goldnead\ClientRooms\Models\ClientRoomTask reopenTask(\Goldnead\ClientRooms\Models\ClientRoomTask|int $task)
