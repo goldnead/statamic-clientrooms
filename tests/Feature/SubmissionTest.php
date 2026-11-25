@@ -9,6 +9,7 @@ use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Goldnead\ClientRooms\Tests\TestCase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
@@ -550,5 +551,52 @@ class SubmissionTest extends TestCase
         ]);
 
         $this->assertSame('11111111-2222-3333-4444-555555555555', $task->refresh()->meta['vf_task_id']);
+    }
+
+    #[Test]
+    public function a_task_whose_recording_refuses_to_go_is_logged_and_still_deleted(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+        ClientRooms::submitTask($task, 'Abgabe', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+
+        // A listener vetoes the deletion of the asset.
+        Event::listen(AssetDeleting::class, fn () => false);
+        Log::spy();
+
+        $task->delete();
+
+        // The removal's verdict is only logged: the task deletion goes on.
+        $this->assertFalse($task->exists);
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message) => str_contains($message, 'statamic-clientrooms'))
+            ->atLeast()->once();
+    }
+
+    #[Test]
+    public function a_file_whose_row_is_refused_leaves_no_recording_in_the_container(): void
+    {
+        $this->makeContainer();
+
+        $room = $this->room();
+        $task = ClientRooms::addTask($room, 'Aufgabe');
+
+        // The asset is written first; the row after it is refused.
+        ClientRoomTaskSubmissionFile::creating(fn () => throw new \RuntimeException('row refused'));
+
+        try {
+            ClientRooms::submitTask($task, 'Abgabe', [UploadedFile::fake()->create('aufnahme.mp3', 6)]);
+            $this->fail('The refused row was swallowed.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('row refused', $e->getMessage());
+        } finally {
+            ClientRoomTaskSubmissionFile::flushEventListeners();
+        }
+
+        $this->assertSame(0, ClientRoomTaskSubmissionFile::query()->count());
+        // A recording with no row pointing at it is the thing this must not leave behind.
+        $this->assertSame(0, Asset::query()->where('container', 'clientrooms')->count());
     }
 }

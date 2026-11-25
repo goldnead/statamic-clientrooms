@@ -6,6 +6,7 @@ use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomFile;
 use Goldnead\ClientRooms\Support\Brands;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use InvalidArgumentException;
 use RuntimeException;
@@ -195,6 +196,15 @@ class RoomFiles
 
         if ($asset !== null) {
             $asset->delete();
+
+            // `delete()` gives no verdict (an `AssetDeleting` listener may cancel
+            // it), so the container is asked, as in SubmissionFiles::remove().
+            // The row goes on regardless: only the failure is recorded here.
+            if ($file->asset() !== null) {
+                Log::error('statamic-clientrooms: a room file could not be removed from the container; its row is deleted anyway.', [
+                    'file' => $file->id,
+                ]);
+            }
         }
 
         $file->delete();
