@@ -10,6 +10,7 @@ use Goldnead\StatamicPayments\Events\PaymentPaid;
 use Goldnead\StatamicPayments\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -141,5 +142,80 @@ class OpenRoomOnPaymentTest extends TestCase
         $this->paid(['email' => null, 'product' => 'coaching-5', 'items' => [['product' => 'coaching-5']]]);
 
         $this->assertSame(0, ClientRoom::query()->count());
+    }
+
+    #[Test]
+    public function a_payment_without_an_address_is_logged_without_the_address(): void
+    {
+        Log::spy();
+
+        $this->paid(['email' => null, 'product' => 'coaching-5', 'items' => [['product' => 'coaching-5']]]);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
+                && ($context['payment'] ?? null) === 149
+                && ! array_key_exists('email', $context))
+            ->atLeast()->once();
+    }
+
+    #[Test]
+    public function a_payment_of_another_kind_is_logged_as_no_room(): void
+    {
+        Log::spy();
+
+        $this->paid();
+
+        Log::shouldHaveReceived('info')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
+                && ($context['payment'] ?? null) === 149
+                && ($context['product'] ?? null) === ['kurs'])
+            ->atLeast()->once();
+    }
+
+    #[Test]
+    public function a_payment_without_any_product_is_logged(): void
+    {
+        Log::spy();
+
+        $this->paid(['product' => null, 'items' => []]);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
+                && ($context['payment'] ?? null) === 149)
+            ->atLeast()->once();
+    }
+
+    #[Test]
+    public function unreadable_lines_are_logged_and_the_payments_own_product_still_opens_the_room(): void
+    {
+        Log::spy();
+
+        $unreadable = new class(['id' => 149, 'email' => 'kunde@beispiel.de', 'name' => 'Kunde', 'brand_id' => 0, 'product' => 'coaching-5']) extends Payment
+        {
+            public function __get(string $name): mixed
+            {
+                if ($name === 'items') {
+                    return new class implements \IteratorAggregate
+                    {
+                        public function getIterator(): \Traversable
+                        {
+                            throw new \RuntimeException('lines table unreadable');
+                        }
+                    };
+                }
+
+                return parent::__get($name);
+            }
+        };
+
+        event(new PaymentPaid($unreadable));
+
+        $this->assertSame(1, ClientRoom::query()->count());
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
+                && ($context['payment'] ?? null) === 149
+                && str_contains((string) ($context['exception'] ?? ''), 'lines table unreadable'))
+            ->atLeast()->once();
     }
 }

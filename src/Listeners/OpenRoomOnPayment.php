@@ -32,19 +32,33 @@ class OpenRoomOnPayment
 
         $email = $payment->email;
 
+        // Logs carry the payment id and the product handles, never an address.
         if (! is_string($email) || trim($email) === '') {
+            Log::warning('statamic-clientrooms: a paid payment has no address, so no room was opened.', [
+                'payment' => $payment->id ?? null,
+            ]);
+
             return;
         }
 
         $handles = $this->handlesOf($payment);
 
         if ($handles === []) {
+            Log::warning('statamic-clientrooms: a paid payment carries no product handle, so no room was opened.', [
+                'payment' => $payment->id ?? null,
+            ]);
+
             return;
         }
 
         $match = $this->match($handles);
 
         if ($match === null) {
+            Log::info('statamic-clientrooms: a paid payment holds no coaching product, so no room was opened.', [
+                'payment' => $payment->id ?? null,
+                'product' => $handles,
+            ]);
+
             return;
         }
 
@@ -96,8 +110,14 @@ class OpenRoomOnPayment
                     }
                 }
             }
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             // No lines table, or none readable. The column below still answers.
+            report($e);
+
+            Log::warning('statamic-clientrooms: could not read the payment lines; the payment product column is used instead.', [
+                'payment' => $payment->id ?? null,
+                'exception' => $e->getMessage(),
+            ]);
         }
 
         $primary = $payment->product ?? null;

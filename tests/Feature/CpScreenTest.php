@@ -6,7 +6,10 @@ use Goldnead\ClientRooms\Facades\ClientRooms;
 use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Tests\TestCase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\Test;
+use Statamic\Events\AssetDeleting;
 
 /**
  * Who may look, who may change, and what the screens get.
@@ -284,5 +287,25 @@ class CpScreenTest extends TestCase
         ClientRooms::attach($room, UploadedFile::fake()->create('anything.xyz', 1));
 
         $this->assertSame(1, $room->files()->count());
+    }
+
+    #[Test]
+    public function a_room_file_the_container_refuses_to_drop_is_logged(): void
+    {
+        $this->makeContainer();
+        $room = $this->room();
+        $file = ClientRooms::attach($room, UploadedFile::fake()->create('plan.pdf', 12, 'application/pdf'), 'Übungsplan');
+
+        // A listener vetoes the deletion of the asset.
+        Event::listen(AssetDeleting::class, fn () => false);
+        Log::spy();
+
+        ClientRooms::files()->remove($file);
+
+        // Behaviour unchanged: the row goes on, but the failure is on record.
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
+                && ($context['file'] ?? null) === $file->id)
+            ->atLeast()->once();
     }
 }

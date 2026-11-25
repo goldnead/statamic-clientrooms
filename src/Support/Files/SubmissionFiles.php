@@ -6,8 +6,10 @@ use Goldnead\ClientRooms\Models\ClientRoom;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmission;
 use Goldnead\ClientRooms\Models\ClientRoomTaskSubmissionFile;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Statamic\Facades\Asset;
+use Throwable;
 
 /**
  * The files a client attaches to a submission.
@@ -48,11 +50,33 @@ class SubmissionFiles
 
         $asset = $this->rooms->storeInto($room, $file, $this->folderFor($room, $submission));
 
-        return $submission->files()->create([
-            'container' => $asset->container()->handle(),
-            'path' => $asset->path(),
-            'size' => $size,
-        ]);
+        try {
+            return $submission->files()->create([
+                'container' => $asset->container()->handle(),
+                'path' => $asset->path(),
+                'size' => $size,
+            ]);
+        } catch (Throwable $e) {
+            // The row was refused after the recording was written. Nothing
+            // points at the recording now, so it goes too. The original failure
+            // is what the caller sees; a cleanup that fails is only logged.
+            try {
+                $asset->delete();
+
+                if (Asset::find($asset->id()) !== null) {
+                    Log::warning('statamic-clientrooms: a recording whose row was refused could not be removed from the container.', [
+                        'submission' => $submission->id,
+                    ]);
+                }
+            } catch (Throwable $cleanup) {
+                Log::warning('statamic-clientrooms: cleanup of a recording whose row was refused failed.', [
+                    'submission' => $submission->id,
+                    'exception' => $cleanup->getMessage(),
+                ]);
+            }
+
+            throw $e;
+        }
     }
 
     /**

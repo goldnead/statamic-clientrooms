@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * One thing to do in a room.
@@ -123,7 +124,13 @@ class ClientRoomTask extends Model
             $files = app(SubmissionFiles::class);
 
             foreach ($task->submissions()->with('files')->get() as $submission) {
-                $files->removeFor($submission);
+                if (! $files->removeFor($submission)) {
+                    // Logged, not raised: the task goes on, the recording stays where it is.
+                    Log::warning('statamic-clientrooms: a recording of a removed task could not be removed from the container.', [
+                        'task' => $task->id,
+                        'submission' => $submission->id,
+                    ]);
+                }
             }
         });
     }
