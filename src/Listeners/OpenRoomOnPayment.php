@@ -54,7 +54,7 @@ class OpenRoomOnPayment
         $match = $this->match($handles);
 
         if ($match === null) {
-            Log::info('statamic-clientrooms: a paid payment holds no coaching product, so no room was opened.', [
+            Log::debug('statamic-clientrooms: a paid payment holds no coaching product, so no room was opened.', [
                 'payment' => $payment->id ?? null,
                 'product' => $handles,
             ]);
@@ -112,8 +112,6 @@ class OpenRoomOnPayment
             }
         } catch (Throwable $e) {
             // No lines table, or none readable. The column below still answers.
-            report($e);
-
             Log::warning('statamic-clientrooms: could not read the payment lines; the payment product column is used instead.', [
                 'payment' => $payment->id ?? null,
                 'exception' => $e->getMessage(),

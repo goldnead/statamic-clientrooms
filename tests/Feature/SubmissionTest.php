@@ -570,7 +570,7 @@ class SubmissionTest extends TestCase
 
         // The removal's verdict is only logged: the task deletion goes on.
         $this->assertFalse($task->exists);
-        Log::shouldHaveReceived('warning')
+        Log::shouldHaveReceived('error')
             ->withArgs(fn (string $message) => str_contains($message, 'statamic-clientrooms'))
             ->atLeast()->once();
     }

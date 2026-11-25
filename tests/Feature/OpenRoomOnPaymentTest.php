@@ -165,7 +165,7 @@ class OpenRoomOnPaymentTest extends TestCase
 
         $this->paid();
 
-        Log::shouldHaveReceived('info')
+        Log::shouldHaveReceived('debug')
             ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'statamic-clientrooms')
                 && ($context['payment'] ?? null) === 149
                 && ($context['product'] ?? null) === ['kurs'])

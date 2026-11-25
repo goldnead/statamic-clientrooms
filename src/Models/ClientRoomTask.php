@@ -126,9 +126,12 @@ class ClientRoomTask extends Model
             foreach ($task->submissions()->with('files')->get() as $submission) {
                 if (! $files->removeFor($submission)) {
                     // Logged, not raised: the task goes on, the recording stays where it is.
-                    Log::warning('statamic-clientrooms: a recording of a removed task could not be removed from the container.', [
+                    // The rows go with the task, so the log is the only place that still
+                    // names the assets: container and path, for the manual clean-up.
+                    Log::error('statamic-clientrooms: a recording of a removed task could not be removed from the container.', [
                         'task' => $task->id,
                         'submission' => $submission->id,
+                        'assets' => $submission->files->map(fn ($file) => $file->container.'::'.$file->path)->all(),
                     ]);
                 }
             }
