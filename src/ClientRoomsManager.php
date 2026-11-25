@@ -715,7 +715,10 @@ class ClientRoomsManager
 
         try {
             return Carbon::parse($value);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // Still null, as designed. But a null expiry reads as "never expires", so the import must say what it dropped.
+            Log::warning('clientrooms: an import date could not be read and is stored empty.', ['type' => get_debug_type($value), 'error' => $e->getMessage()]);
+
             return null;
         }
     }
