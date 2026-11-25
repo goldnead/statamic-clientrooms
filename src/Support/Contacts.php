@@ -2,6 +2,7 @@
 
 namespace Goldnead\ClientRooms\Support;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -43,7 +44,9 @@ final class Contacts
             $id = $query->orderBy('id')->value('id');
 
             return $id !== null ? (int) $id : null;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('clientrooms: the LeadHub contact lookup failed, the room stays unlinked.', ['exception' => $e::class]);
+
             return null;
         }
     }

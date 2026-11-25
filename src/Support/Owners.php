@@ -2,6 +2,7 @@
 
 namespace Goldnead\ClientRooms\Support;
 
+use Illuminate\Support\Facades\Log;
 use Statamic\Auth\User as StatamicUser;
 use Statamic\Facades\User;
 use Throwable;
@@ -54,7 +55,9 @@ final class Owners
             }
 
             return $user instanceof StatamicUser ? $user : null;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('clientrooms: the owner lookup failed, the room shows no owner.', ['exception' => $e::class]);
+
             return null;
         }
     }
@@ -105,7 +108,9 @@ final class Owners
                 ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
                 ->values()
                 ->all();
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('clientrooms: the owner list failed, the picker is empty.', ['exception' => $e::class]);
+
             return [];
         }
     }
