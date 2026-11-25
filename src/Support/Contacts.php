@@ -45,7 +45,7 @@ final class Contacts
 
             return $id !== null ? (int) $id : null;
         } catch (Throwable $e) {
-            Log::warning('clientrooms: the LeadHub contact lookup failed, the room stays unlinked.', ['error' => $e->getMessage()]);
+            Log::warning('clientrooms: the LeadHub contact lookup failed, the room stays unlinked.', ['exception' => $e::class]);
 
             return null;
         }

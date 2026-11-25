@@ -56,7 +56,7 @@ final class Owners
 
             return $user instanceof StatamicUser ? $user : null;
         } catch (Throwable $e) {
-            Log::warning('clientrooms: the owner lookup failed, the room shows no owner.', ['error' => $e->getMessage()]);
+            Log::warning('clientrooms: the owner lookup failed, the room shows no owner.', ['exception' => $e::class]);
 
             return null;
         }
@@ -109,7 +109,7 @@ final class Owners
                 ->values()
                 ->all();
         } catch (Throwable $e) {
-            Log::warning('clientrooms: the owner list failed, the picker is empty.', ['error' => $e->getMessage()]);
+            Log::warning('clientrooms: the owner list failed, the picker is empty.', ['exception' => $e::class]);
 
             return [];
         }
